@@ -1,0 +1,6 @@
+{
+  "name": "Sun Beauty",
+  "description": "Luxury botanical skincare & beauty e-commerce store with full admin dashboard, Firebase cloud database real-time persistence, and bilingual Arabic/English support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

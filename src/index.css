@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-forest: #2D5A27;
+    --color-botanical: #3E7B35;
+    --color-soft-green: #527958;
+    --color-ivory: #FAFAF8;
+    --color-white: #FFFFFF;
+    --color-gold: #D4AF37;
+    --color-charcoal: #1C241E;
+  }
+
+  body {
+    font-family: 'Alexandria', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #1C241E;
+    background-color: #FAFAF8;
+    overflow-x: hidden;
+  }
+}
+
+.font-serif-luxury {
+  font-family: 'Cormorant Garamond', 'Alexandria', Georgia, serif;
+}
+
+.font-sans-modern {
+  font-family: 'Alexandria', 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Custom Botanical Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F2F2EE;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #B6C9B4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #527958;
+}
+
+/* Luxury Card & Glass Accents */
+.luxury-shadow-sm {
+  box-shadow: 0 2px 8px -2px rgba(45, 90, 39, 0.05), 0 1px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.luxury-shadow-md {
+  box-shadow: 0 8px 24px -6px rgba(45, 90, 39, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+}
+
+.luxury-shadow-lg {
+  box-shadow: 0 16px 36px -8px rgba(45, 90, 39, 0.12), 0 6px 16px -4px rgba(0, 0, 0, 0.05);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+

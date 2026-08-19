@@ -1,0 +1,147 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Botanical skincare products",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "object" },
+        "description": { "type": "object" },
+        "ingredients": { "type": "object" },
+        "howToUse": { "type": "object" },
+        "benefits": { "type": "object" },
+        "categoryId": { "type": "string" },
+        "price": { "type": "number" },
+        "compareAtPrice": { "type": "number" },
+        "discount": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "stock": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "isFeatured": { "type": "boolean" },
+        "isBestSeller": { "type": "boolean" },
+        "isNew": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "price", "categoryId"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product categories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "object" },
+        "slug": { "type": "string" },
+        "image": { "type": "string" },
+        "sortOrder": { "type": "number" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer orders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "items": { "type": "array" },
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "governorate": { "type": "string" },
+        "city": { "type": "string" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "shipping": { "type": "number" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "senderTransferNumber": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "items", "customerName", "phone", "total", "status"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer reviews",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "customerName", "rating", "comment"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount coupon codes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string" },
+        "discountValue": { "type": "number" },
+        "minOrderValue": { "type": "number" },
+        "maxDiscount": { "type": "number" },
+        "expiresAt": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "usageCount": { "type": "number" }
+      },
+      "required": ["id", "code", "discountType", "discountValue"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Global store settings and config",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "storeName": { "type": "object" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "object" },
+        "shippingRate": { "type": "number" },
+        "freeShippingThreshold": { "type": "number" },
+        "allowCOD": { "type": "boolean" },
+        "defaultLanguage": { "type": "string" },
+        "defaultCurrency": { "type": "string" },
+        "socialLinks": { "type": "object" },
+        "vodafoneCashNumber": { "type": "string" },
+        "instapayUsername": { "type": "string" }
+      },
+      "required": ["key"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Store products"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Product categories"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer purchase orders"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Customer reviews"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Discount promotional coupons"
+    },
+    "/settings/{settingId}": {
+      "schema": "StoreSettings",
+      "description": "Global store configuration"
+    }
+  }
+}
