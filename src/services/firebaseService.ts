@@ -221,15 +221,26 @@ class FirebaseService {
 
   // --- CRUD Operations ---
 
-  // Products
-  public async getProducts(): Promise<Product[]> {
+ // Orders
+  public async getOrders(): Promise<Order[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.PRODUCTS));
-      const list: Product[] = [];
-      snap.forEach((d) => list.push(d.data() as Product));
+      const snap = await getDocs(collection(db, COLLECTIONS.ORDERS));
+      const list: Order[] = [];
+      snap.forEach((d) => list.push(d.data() as Order));
+      
+      list.sort((a, b) => {
+        const timeA = typeof a?.createdAt === 'string' 
+          ? new Date(a.createdAt).getTime() 
+          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = typeof b?.createdAt === 'string' 
+          ? new Date(b.createdAt).getTime() 
+          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+
       return list;
     } catch (e) {
-      console.warn('Firestore getProducts error:', e);
+      console.warn('Firestore getOrders error:', e);
       return [];
     }
   }
