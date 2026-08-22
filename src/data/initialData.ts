@@ -74,7 +74,28 @@ export const INITIAL_CATEGORIES: Category[] = [
   },
 ];
 
-export const INITIAL_PRODUCTS: Product[] = [];
+export const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: 'prod-01',
+    name: {
+      ar: 'شريط صن سويت بالعسل الطبيعي',
+      en: 'Sun Sweet Strip with Natural Honey'
+    },
+    description: {
+      ar: 'شريط صن سويت بالعسل الطبيعي هو شريط لإزالة الشعر من الجذور، بتركيبة تحتوي على العسل الطبيعي، يساعد على إزالة الشعر بفعالية ويترك البشرة ناعمة.',
+      en: 'Sun Sweet Natural Honey Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.'
+    },
+    price: 30,
+    categoryId: 'cat-01',
+    images: ['/honey-strip.jpeg'],
+    stock: 2000,
+    rating: 5,
+    reviewCount: 0,
+    featured: true,
+    bestSeller: true,
+    newProduct: false
+  }
+];
 
 export const INITIAL_REVIEWS: Review[] = [];
 
