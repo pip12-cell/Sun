@@ -140,22 +140,34 @@ class FirebaseService {
   }
 
   public subscribeToOrders(callback: (orders: Order[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.ORDERS);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        const ords: Order[] = [];
-        snapshot.forEach((d) => {
-          ords.push(d.data() as Order);
-        });
-        ords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        callback(ords);
-      },
-      (error) => {
-        console.warn('Error subscribing to orders:', error);
-      }
-    );
-  }
+  const colRef = collection(db, COLLECTIONS.ORDERS);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const ords: Order[] = [];
+      snapshot.forEach((d) => {
+        ords.push(d.data() as Order);
+      });
+      
+      // الترتيب الآمن بدون توقف التطبيق
+      ords.sort((a, b) => {
+        const timeA = typeof a?.createdAt === 'string' 
+          ? new Date(a.createdAt).getTime() 
+          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = typeof b?.createdAt === 'string' 
+          ? new Date(b.createdAt).getTime() 
+          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+
+      callback(ords);
+    },
+    (error) => {
+      console.warn('Error subscribing to orders:', error);
+      callback([]);
+    }
+  );
+}
 
   public subscribeToReviews(callback: (reviews: Review[]) => void): Unsubscribe {
     const colRef = collection(db, COLLECTIONS.REVIEWS);
