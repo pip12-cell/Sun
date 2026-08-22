@@ -201,7 +201,7 @@ const refreshAllData = useCallback(async () => {
       setWishlist(wsh);
     } catch (err) {
       console.error('Failed to load store data:', err);
-      showToast('تنبيه التخزين', 'تم استخدام التخزين المحلي الاحتياطي بنجاح', 'info');
+      //showToast('تنبيه التخزين', 'تم استخدام التخزين المحلي الاحتياطي بنجاح', 'info');
     } finally {
       setIsLoading(false);
     }
