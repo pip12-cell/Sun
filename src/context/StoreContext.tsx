@@ -178,20 +178,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   // Load initial data from StorageService (IndexedDB + localStorage)
-  const refreshAllData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      await storageService.initializeDatabaseIfNeeded();
-
-      const [prods, cats, ords, revs, cps, sttngs, wsh] = await Promise.all([
-        storageService.getProducts(),
-        storageService.getCategories(),
-        storageService.getOrders(),
-        storageService.getReviews(),
-        storageService.getCoupons(),
-        storageService.getSettings(),
-        storageService.getWishlist(),
-      ]);
+const refreshAllData = useCallback(async () => {
+  try {
+    await storageService.restoreFullDatabase({
+  meta: { version: 1, initialized: true, updatedAt: new Date().toISOString() },
+  products: INITIAL_PRODUCTS,
+  categories: INITIAL_CATEGORIES,
+  reviews: [],
+  coupons: [],
+  settings: INITIAL_SETTINGS,
+  orders: [],
+  wishlist: [],
+});
+    setIsLoading(true);
 
       setProducts(prods);
       setCategories(cats);
@@ -250,14 +249,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Real-time subscriptions initialization:', e);
     }
 
-    // One-time automatic purge of pre-existing sample products so user starts with a clean slate
-    const hasCleanedSampleProducts = localStorage.getItem('sun_beauty_products_purged_v2');
-    if (!hasCleanedSampleProducts) {
-      storageService.clearAllProducts().then(() => {
-        setProducts([]);
-        localStorage.setItem('sun_beauty_products_purged_v2', 'true');
-      }).catch((e) => console.warn('Product purge notice:', e));
-    }
+
 
     // One-time automatic purge of pre-existing sample reviews so admin can add their own reviews
     const hasCleanedSampleReviews = localStorage.getItem('sun_beauty_reviews_purged_v3');
