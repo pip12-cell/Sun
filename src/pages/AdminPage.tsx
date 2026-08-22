@@ -893,28 +893,28 @@ export const AdminPage: React.FC = () => {
                       <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {orders.slice(0, 5).map((ord) => (
-                      <tr key={ord.id} className="hover:bg-[#FAFAF8]">
-                        <td className="py-3 font-mono font-bold text-[#2D5A27]">{ord.id}</td>
-                        <td className="py-3 font-semibold text-stone-900">{ord.customerName}</td>
-                        <td className="py-3 text-stone-600">{ord.items.length} منتجات</td>
-                        <td className="py-3 font-bold text-[#2D5A27]">
-                          {formatPrice(ord.total, currency, settings.currencies, language)}
-                        </td>
-                        <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
-                          {ord.paymentMethod}
-                        </td>
-                        <td className="py-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
-                            {ord.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-stone-400 text-[11px]">
-                          {new Date(ord.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
+                 {orders?.slice(0, 5).map((ord) => (
+  <tr key={ord?.id} className="hover:bg-[#FAFAF8]">
+    <td className="py-3 font-mono font-bold text-[#2D5A27]">{ord?.id}</td>
+    <td className="py-3 font-semibold text-stone-900">
+      {ord?.customerName || ord?.shippingAddress?.fullName || 'عميل'}
+    </td>
+    <td className="py-3 text-stone-600">
+      {`${ord?.items?.length || 0} منتجات`}
+    </td>
+    <td className="py-3 font-bold text-[#2D5A27]">
+      {formatPrice(ord?.total || 0, currency, settings?.currencies, language)}
+    </td>
+    <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
+      {ord?.paymentMethod}
+    </td>
+    <td className="py-3">
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
+        {ord?.status}
+      </span>
+    </td>
+  </tr>
+))}
                   </tbody>
                 </table>
               </div>
