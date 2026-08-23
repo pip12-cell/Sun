@@ -105,9 +105,31 @@ export const CheckoutPage: React.FC = () => {
     if (res.success) setCouponInput('');
   };
 
-  const handlePlaceOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (cart.length === 0) return;
+  // داخل دالة إرسال الطلب في CheckoutPage.tsx
+
+const handlePlaceOrder = async () => {
+  const newOrder: Order = {
+    id: orderId, // مثل SB-274190
+    items: cart,
+    total: finalTotal,
+    customerName: formData.fullName,
+    shippingAddress: formData,
+    paymentMethod: selectedPaymentMethod,
+    status: 'new',
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    // 🔴 أهم سطر: حفظ الطلب فعلياً في قاعدة بيانات Firebase
+    await firebaseService.saveOrder(newOrder);
+
+    // تفريغ السلة والتوجيه لصفحة النجاح
+    clearCart();
+    navigate(`/order-success/${newOrder.id}`);
+  } catch (error) {
+    console.error("Failed to save order to Firebase:", error);
+  }
+};
 
     // Strict validation for Vodafone Cash and InstaPay
     if (paymentMethod === 'vodafone_cash') {
