@@ -140,34 +140,36 @@ class FirebaseService {
   }
 
   public subscribeToOrders(callback: (orders: Order[]) => void): Unsubscribe {
-  const colRef = collection(db, COLLECTIONS.ORDERS);
-  return onSnapshot(
-    colRef,
-    (snapshot) => {
-      const ords: Order[] = [];
-      snapshot.forEach((d) => {
-        ords.push(d.data() as Order);
-      });
-      
-      // الترتيب الآمن بدون توقف التطبيق
-      ords.sort((a, b) => {
-        const timeA = typeof a?.createdAt === 'string' 
-          ? new Date(a.createdAt).getTime() 
-          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-        const timeB = typeof b?.createdAt === 'string' 
-          ? new Date(b.createdAt).getTime() 
-          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-        return timeB - timeA;
-      });
+    const colRef = collection(db, COLLECTIONS.ORDERS);
+    return onSnapshot(
+      colRef,
+      (snapshot) => {
+        const ords: Order[] = [];
+        snapshot.forEach((d) => {
+          if (d.exists()) {
+            ords.push({ id: d.id, ...d.data() } as Order);
+          }
+        });
+        
+        // الترتيب الآمن للطلبات
+        ords.sort((a, b) => {
+          const timeA = typeof a?.createdAt === 'string' 
+            ? new Date(a.createdAt).getTime() 
+            : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const timeB = typeof b?.createdAt === 'string' 
+            ? new Date(b.createdAt).getTime() 
+            : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+          return timeB - timeA;
+        });
 
-      callback(ords);
-    },
-    (error) => {
-      console.warn('Error subscribing to orders:', error);
-      callback([]);
-    }
-  );
-}
+        callback(ords);
+      },
+      (error) => {
+        console.warn('Error subscribing to orders:', error);
+        callback([]);
+      }
+    );
+  }
 
   public subscribeToReviews(callback: (reviews: Review[]) => void): Unsubscribe {
     const colRef = collection(db, COLLECTIONS.REVIEWS);
@@ -221,30 +223,7 @@ class FirebaseService {
 
   // --- CRUD Operations ---
 
- // Orders
-  public async getOrders(): Promise<Order[]> {
-    try {
-      const snap = await getDocs(collection(db, COLLECTIONS.ORDERS));
-      const list: Order[] = [];
-      snap.forEach((d) => list.push(d.data() as Order));
-      
-      list.sort((a, b) => {
-        const timeA = typeof a?.createdAt === 'string' 
-          ? new Date(a.createdAt).getTime() 
-          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-        const timeB = typeof b?.createdAt === 'string' 
-          ? new Date(b.createdAt).getTime() 
-          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-        return timeB - timeA;
-      });
-
-      return list;
-    } catch (e) {
-      console.warn('Firestore getOrders error:', e);
-      return [];
-    }
-  }
-
+  // Products
   public async saveProduct(product: Product): Promise<void> {
     const ref = doc(db, COLLECTIONS.PRODUCTS, product.id);
     await setDoc(ref, product, { merge: true });
@@ -296,13 +275,27 @@ class FirebaseService {
     await deleteDoc(ref);
   }
 
-  // Orders
+  // Orders (دالة فريدة واحدة ومحمية بالكامل)
   public async getOrders(): Promise<Order[]> {
     try {
       const snap = await getDocs(collection(db, COLLECTIONS.ORDERS));
       const list: Order[] = [];
-      snap.forEach((d) => list.push(d.data() as Order));
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      snap.forEach((d) => {
+        if (d.exists()) {
+          list.push({ id: d.id, ...d.data() } as Order);
+        }
+      });
+      
+      list.sort((a, b) => {
+        const timeA = typeof a?.createdAt === 'string' 
+          ? new Date(a.createdAt).getTime() 
+          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = typeof b?.createdAt === 'string' 
+          ? new Date(b.createdAt).getTime() 
+          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+
       return list;
     } catch (e) {
       console.warn('Firestore getOrders error:', e);
@@ -312,7 +305,11 @@ class FirebaseService {
 
   public async saveOrder(order: Order): Promise<void> {
     const ref = doc(db, COLLECTIONS.ORDERS, order.id);
-    await setDoc(ref, order);
+    const safeOrder = {
+      ...order,
+      createdAt: typeof order.createdAt === 'string' ? order.createdAt : new Date().toISOString()
+    };
+    await setDoc(ref, safeOrder, { merge: true });
   }
 
   public async deleteOrder(orderId: string): Promise<void> {
