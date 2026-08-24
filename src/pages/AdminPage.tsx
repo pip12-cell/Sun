@@ -879,53 +879,59 @@ export const AdminPage: React.FC = () => {
             <h3 className="font-serif-luxury text-xl font-bold text-[#1C241E] mb-4">
               {isAr ? 'أحدث الطلبات المستلمة' : 'Recent Customer Orders'}
             </h3>
-            {orders.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left rtl:text-right text-xs">
-                  <thead>
-                    <tr className="border-b border-stone-200 text-stone-400 font-semibold">
-                      <th className="pb-3">#ID</th>
-                      <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
-                      <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
-                      <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
-                      <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
-                      <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
-                      <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {orders.slice(0, 5).map((ord) => (
-                      <tr key={ord.id} className="hover:bg-[#FAFAF8]">
-                        <td className="py-3 font-mono font-bold text-[#2D5A27]">{ord.id}</td>
-                        <td className="py-3 font-semibold text-stone-900">{ord.customerName}</td>
-                        <td className="py-3 text-stone-600">{ord.items.length} منتجات</td>
-                        <td className="py-3 font-bold text-[#2D5A27]">
-                          {formatPrice(ord.total, currency, settings.currencies, language)}
-                        </td>
-                        <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
-                          {ord.paymentMethod}
-                        </td>
-                        <td className="py-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
-                            {ord.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-stone-400 text-[11px]">
-                          {new Date(ord.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-xs text-stone-400 py-6 text-center">
-                {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+            {orders && orders.length > 0 ? (
+<div className="overflow-x-auto">
+    <table className="w-full text-left rtl:text-right text-xs">
+      <thead>
+        <tr className="border-b border-stone-200 text-stone-400 font-semibold">
+          <th className="pb-3">#ID</th>
+          <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
+          <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
+          <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
+          <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
+          <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
+          <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-stone-100">
+        {orders.slice(0, 5).map((ord) => {
+          if (!ord) return null;
+          return (
+            <tr key={ord.id || Math.random()} className="hover:bg-[#FAFAF8]">
+              <td className="py-3 font-mono font-bold text-[#2D5A27]">
+                {ord.id || 'N/A'}
+              </td>
+              <td className="py-3 font-semibold text-stone-900">
+                {ord.customerName || ord.shippingAddress?.fullName || (isAr ? 'زائر' : 'Guest')}
+              </td>
+              <td className="py-3 text-stone-600">
+                {Array.isArray(ord.items) ? ord.items.length : 0} {isAr ? 'منتجات' : 'items'}
+              </td>
+              <td className="py-3 font-bold text-[#2D5A27]">
+                {formatPrice(ord.total || 0, currency, settings?.currencies, language)}
+              </td>
+              <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
+                {ord.paymentMethod || 'N/A'}
+              </td>
+              <td className="py-3">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
+                  {ord.status || 'new'}
+                </span>
+              </td>
+              <td className="py-3 text-stone-400 text-[11px]">
+                {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : '—'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+) : (
+  <p className="text-xs text-stone-400 py-6 text-center">
+    {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
+  </p>
+)}
 
       {/* TAB 2: PRODUCTS CRUD */}
       {activeTab === 'products' && (

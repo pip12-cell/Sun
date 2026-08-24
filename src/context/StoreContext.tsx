@@ -190,6 +190,20 @@ const refreshAllData = useCallback(async () => {
   orders: [],
   wishlist: [],
 });
+// أضف قراءة الطلبات من firebaseService بعد تحميل StorageService
+try {
+  const firebaseOrders = await firebaseService.getOrders();
+  if (firebaseOrders && firebaseOrders.length > 0) {
+    setOrders(firebaseOrders);
+  } else {
+    const localOrders = await storageService.getOrders();
+    setOrders(localOrders || []);
+  }
+} catch (err) {
+  console.error("Error loading orders from firebase:", err);
+  const localOrders = await storageService.getOrders();
+  setOrders(localOrders || []);
+}
     setIsLoading(true);
 
       setProducts(prods);
