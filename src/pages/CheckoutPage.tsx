@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../hooks/useStore';
+import { firebaseService } from '../services/firebaseService';
 import { PaymentMethod } from '../types';
 import {
   ShoppingBag,
@@ -105,32 +106,32 @@ export const CheckoutPage: React.FC = () => {
     if (res.success) setCouponInput('');
   };
 
-  // داخل دالة إرسال الطلب في CheckoutPage.tsx
+  const handlePlaceOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cart.length === 0) return;
+  // 1. إنشاء كائن الطلب البيانات كاملة
+    const newOrder = {
+      id: `SB-${Math.floor(100000 + Math.random() * 900000)}`,
+      items: cart,
+      total: finalTotal,
+      customerName: formData.fullName,
+      shippingAddress: formData,
+      paymentMethod: paymentMethod,
+      senderTransferNumber: senderTransferNumber,
+      status: 'new',
+      createdAt: new Date().toISOString()
+    };
 
-const handlePlaceOrder = async () => {
-  const newOrder: Order = {
-    id: orderId, // مثل SB-274190
-    items: cart,
-    total: finalTotal,
-    customerName: formData.fullName,
-    shippingAddress: formData,
-    paymentMethod: selectedPaymentMethod,
-    status: 'new',
-    createdAt: new Date().toISOString()
-  };
-
-  try {
-    // 🔴 أهم سطر: حفظ الطلب فعلياً في قاعدة بيانات Firebase
+    // 2. الحفظ المباشر في Firebase Firestore
     await firebaseService.saveOrder(newOrder);
 
-    // تفريغ السلة والتوجيه لصفحة النجاح
+    // 3. تفريغ السلة والتوجيه لصفحة النجاح
     clearCart();
     navigate(`/order-success/${newOrder.id}`);
   } catch (error) {
-    console.error("Failed to save order to Firebase:", error);
+    console.error("Error saving order:", error);
   }
 };
-
     // Strict validation for Vodafone Cash and InstaPay
     if (paymentMethod === 'vodafone_cash') {
       if (!senderTransferNumber.trim()) {
