@@ -64,3 +64,4 @@ export function App() {
 }
 
 export default App;
+<Route path="/checkout" element={<CheckoutPage />} />
