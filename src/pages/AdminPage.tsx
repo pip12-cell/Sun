@@ -1088,25 +1088,76 @@ export const AdminPage: React.FC = () => {
       )}
 
       {/* TAB 3: ORDERS MANAGEMENT */}
-      {activeTab === 'orders' && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            <span className="text-xs font-semibold text-stone-500">{isAr ? 'تصفية الحالة:' : 'Filter Status:'}</span>
-            {['all', 'new', 'processing', 'shipped', 'completed', 'cancelled'].map((st) => (
-              <button
-                key={st}
-                type="button"
-                onClick={() => setOrderStatusFilter(st as any)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-all ${
-                  orderStatusFilter === st
-                    ? 'bg-[#2D5A27] text-white'
-                    : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50'
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
+     {activeTab === 'orders' && (
+  <div className="space-y-6">
+    <h2 className="text-xl font-bold text-[#1C241E]">
+      {isAr ? 'إدارة الطلبات' : 'Orders Management'}
+    </h2>
+
+    <div className="bg-white rounded-3xl border border-[#2D5A27]/10 p-6 shadow-sm overflow-x-auto">
+      {orders && orders.length > 0 ? (
+        <table className="w-full text-left rtl:text-right text-xs">
+          <thead>
+            <tr className="border-b border-stone-200 text-stone-400 font-semibold">
+              <th className="pb-3">#ID</th>
+              <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
+              <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
+              <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
+              <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
+              <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
+              <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-stone-100">
+            {orders.map((ord) => {
+              if (!ord) return null;
+
+              // معالجة صريحة لتاريخ الفايربيس لتجنب الشاشة البيضاء
+              let dateStr = '—';
+              try {
+                if (typeof ord.createdAt === 'string') {
+                  dateStr = new Date(ord.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+                } else if (ord.createdAt && typeof ord.createdAt === 'object' && 'seconds' in ord.createdAt) {
+                  dateStr = new Date(ord.createdAt.seconds * 1000).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+                }
+              } catch (e) {
+                dateStr = '—';
+              }
+
+              return (
+                <tr key={ord.id || Math.random()} className="hover:bg-[#FAFAF8]">
+                  <td className="py-3 font-mono font-bold text-[#2D5A27]">{ord.id || 'N/A'}</td>
+                  <td className="py-3 font-semibold text-stone-900">
+                    {ord.customerName || ord.shippingAddress?.fullName || (isAr ? 'زائر' : 'Guest')}
+                  </td>
+                  <td className="py-3 text-stone-600">
+                    {Array.isArray(ord.items) ? ord.items.length : 0} {isAr ? 'منتجات' : 'items'}
+                  </td>
+                  <td className="py-3 font-bold text-[#2D5A27]">
+                    {formatPrice(ord.total || 0, currency, settings?.currencies, language)}
+                  </td>
+                  <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
+                    {ord.paymentMethod || 'N/A'}
+                  </td>
+                  <td className="py-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
+                      {ord.status || 'new'}
+                    </span>
+                  </td>
+                  <td className="py-3 text-stone-400 text-[11px]">{dateStr}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-xs text-stone-400 py-6 text-center">
+          {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
+        </p>
+      )}
+    </div>
+  </div>
+)}
 
           <div className="space-y-4">
             {orders

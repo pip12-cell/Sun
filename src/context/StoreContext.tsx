@@ -222,8 +222,19 @@ try {
   }, [showToast]);
 
   useEffect(() => {
-    refreshAllData();
+  const fetchOrdersFromFirebase = async () => {
+    try {
+      const liveOrders = await firebaseService.getOrders();
+      if (liveOrders && liveOrders.length > 0) {
+        setOrders(liveOrders);
+      }
+    } catch (err) {
+      console.error("Failed to load live orders:", err);
+    }
+  };
 
+  fetchOrdersFromFirebase();
+}, []);
     // Setup live real-time cloud sync with Firebase Firestore
     let unsubs: (() => void)[] = [];
     try {
