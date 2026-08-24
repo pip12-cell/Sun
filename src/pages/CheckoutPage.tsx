@@ -107,25 +107,46 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (cart.length === 0) return;
-  // 1. إنشاء كائن الطلب البيانات كاملة
-    const newOrder = {
-      id: `SB-${Math.floor(100000 + Math.random() * 900000)}`,
-      items: cart,
-      total: finalTotal,
-      customerName: formData.fullName,
-      shippingAddress: formData,
-      paymentMethod: paymentMethod,
-      senderTransferNumber: senderTransferNumber,
-      status: 'new',
-      createdAt: new Date().toISOString()
-    };
+  e.preventDefault();
+  if (cart.length === 0) return;
 
-    // 2. الحفظ المباشر في Firebase Firestore
+  // 1. Strict validation for Vodafone Cash and InstaPay
+  if (paymentMethod === 'vodafone_cash') {
+    if (!senderTransferNumber.trim()) {
+      setTransferError(
+        isAr
+          ? '⚠️ يرجى إدخال رقم محفظة فودافون كاش التي قمت بالتحويل منها لتأكيد طلبك.'
+          : '⚠️ Please enter the sender Vodafone Cash wallet number to confirm your order.'
+      );
+      return;
+    }
+  } else if (paymentMethod === 'instapay') {
+    if (!senderTransferNumber.trim()) {
+      setTransferError(
+        isAr
+          ? '⚠️ يرجى إدخال الحساب أو الرقم المحول منه عبر إنستا باي لتأكيد طلبك.'
+          : '⚠️ Please enter the InstaPay account/number transferred from to confirm your order.'
+      );
+      return;
+    }
+  }
+
+  // 2. إنشاء كائن الطلب
+  const newOrder = {
+    id: `SB-${Math.floor(100000 + Math.random() * 900000)}`,
+    items: cart,
+    total: finalTotal,
+    customerName: formData.fullName || '',
+    shippingAddress: formData,
+    paymentMethod: paymentMethod,
+    senderTransferNumber: senderTransferNumber || '',
+    status: 'new',
+    createdAt: new Date().toISOString()
+  };
+
+  // 3. الحفظ المباشر في Firebase مع try/catch
+  try {
     await firebaseService.saveOrder(newOrder);
-
-    // 3. تفريغ السلة والتوجيه لصفحة النجاح
     clearCart();
     navigate(`/order-success/${newOrder.id}`);
   } catch (error) {
