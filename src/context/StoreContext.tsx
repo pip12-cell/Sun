@@ -36,7 +36,6 @@ import { translations } from '../i18n/translations';
 import { generateOrderId } from '../utils/helpers';
 
 interface StoreContextType {
-  // Data
   products: Product[];
   categories: Category[];
   orders: Order[];
@@ -50,7 +49,6 @@ interface StoreContextType {
   t: typeof translations['ar'];
   isLoading: boolean;
 
-  // UI
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
 
@@ -68,7 +66,6 @@ interface StoreContextType {
     type?: 'success' | 'error' | 'info' | 'warning'
   ) => void;
 
-  // Cart
   activeCoupon: Coupon | null;
   cartSubtotal: number;
   cartDiscount: number;
@@ -78,7 +75,6 @@ interface StoreContextType {
   freeShippingProgress: number;
   amountLeftForFreeShipping: number;
 
-  // Actions
   addToCart: (
     product: Product,
     quantity?: number,
@@ -115,7 +111,6 @@ interface StoreContextType {
     senderTransferNumber?: string;
   }) => Promise<Order>;
 
-  // Reviews
   addReview: (reviewData: {
     productId: string;
     customerName: string;
@@ -132,7 +127,6 @@ interface StoreContextType {
 
   clearAllReviews: () => Promise<void>;
 
-  // Products
   saveProduct: (product: Product) => Promise<void>;
 
   addProduct: (
@@ -148,7 +142,6 @@ interface StoreContextType {
 
   clearAllProducts: () => Promise<void>;
 
-  // Categories
   saveCategory: (category: Category) => Promise<void>;
 
   createCategory: (
@@ -165,7 +158,6 @@ interface StoreContextType {
 
   deleteCategory: (id: string) => Promise<void>;
 
-  // Orders
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus
@@ -173,7 +165,6 @@ interface StoreContextType {
 
   deleteOrder: (id: string) => Promise<void>;
 
-  // Coupons
   saveCoupon: (coupon: Coupon) => Promise<void>;
 
   createCoupon: (
@@ -191,19 +182,16 @@ interface StoreContextType {
 
   deleteCoupon: (id: string) => Promise<void>;
 
-  // Settings
   saveSettings: (settings: StoreSettings) => Promise<void>;
 
   updateSettings: (settings: StoreSettings) => Promise<void>;
 
-  // Database
   restoreBackup: (dump: any) => Promise<void>;
 
   restoreDatabase: (dump: any) => Promise<void>;
 
   resetDatabaseToDefaults: () => Promise<void>;
 
-  // Language / Currency
   setLanguage: (lang: Language) => void;
 
   setCurrency: (curr: CurrencyCode) => void;
@@ -281,9 +269,9 @@ export const StoreProvider: React.FC<{
       }
     });
 
-  // UI
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
   const [quickViewProduct, setQuickViewProduct] =
     useState<Product | null>(null);
 
@@ -295,7 +283,6 @@ export const StoreProvider: React.FC<{
     [language]
   );
 
-  // Toast
   const showToast = useCallback(
     (
       title: string,
@@ -320,6 +307,36 @@ export const StoreProvider: React.FC<{
           current?.id === id ? null : current
         );
       }, 4000);
+    },
+    []
+  );
+
+  /*
+   * =========================================================
+   * MERGE PRODUCTS
+   * =========================================================
+   *
+   * مهم:
+   * لو عندنا منتجات محفوظة قديمة، لا نحذف المنتجات الموجودة
+   * في INITIAL_PRODUCTS.
+   *
+   * لو نفس ID موجود في الاثنين، البيانات المحفوظة هي التي
+   * تأخذ الأولوية.
+   */
+
+  const mergeProducts = useCallback(
+    (storedProducts: Product[] = []) => {
+      const productMap = new Map<string, Product>();
+
+      INITIAL_PRODUCTS.forEach((product) => {
+        productMap.set(product.id, product);
+      });
+
+      storedProducts.forEach((product) => {
+        productMap.set(product.id, product);
+      });
+
+      return Array.from(productMap.values());
     },
     []
   );
@@ -350,10 +367,10 @@ export const StoreProvider: React.FC<{
         storageService.getWishlist(),
       ]);
 
+      // FIX:
+      // دمج المنتجات المحفوظة مع INITIAL_PRODUCTS
       setProducts(
-        prods && prods.length > 0
-          ? prods
-          : INITIAL_PRODUCTS
+        mergeProducts(prods || [])
       );
 
       setCategories(
@@ -382,7 +399,6 @@ export const StoreProvider: React.FC<{
 
       setWishlist(wsh || []);
 
-      // Load orders from Firebase if available
       try {
         const firebaseOrders =
           await firebaseService.getOrders();
@@ -405,18 +421,25 @@ export const StoreProvider: React.FC<{
         error
       );
 
-      // Safe fallback
-      setProducts(INITIAL_PRODUCTS);
+      setProducts(
+        mergeProducts([])
+      );
+
       setCategories(INITIAL_CATEGORIES);
+      setOrders([]);
       setReviews(INITIAL_REVIEWS);
       setCoupons(INITIAL_COUPONS);
       setSettings(INITIAL_SETTINGS);
+      setWishlist([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mergeProducts]);
 
-  // Initial loading + Firebase realtime listeners
+  // =========================================================
+  // INITIAL LOAD + FIREBASE
+  // =========================================================
+
   useEffect(() => {
     let unsubscribeProducts: (() => void) | undefined;
     let unsubscribeCategories: (() => void) | undefined;
@@ -432,8 +455,18 @@ export const StoreProvider: React.FC<{
         unsubscribeProducts =
           firebaseService.subscribeToProducts(
             (cloudProducts) => {
-              if (cloudProducts) {
-                setProducts(cloudProducts);
+              /*
+               * FIX:
+               * Firebase لو عنده منتج واحد فقط لا يمسح
+               * INITIAL_PRODUCTS.
+               */
+              if (
+                cloudProducts &&
+                cloudProducts.length > 0
+              ) {
+                setProducts(
+                  mergeProducts(cloudProducts)
+                );
               }
             }
           );
@@ -507,10 +540,10 @@ export const StoreProvider: React.FC<{
         );
       }
     };
-  }, [refreshAllData]);
+  }, [refreshAllData, mergeProducts]);
 
   // =========================================================
-  // LANGUAGE / CURRENCY
+  // LANGUAGE
   // =========================================================
 
   useEffect(() => {
@@ -527,6 +560,10 @@ export const StoreProvider: React.FC<{
     );
   }, [language]);
 
+  // =========================================================
+  // CURRENCY
+  // =========================================================
+
   useEffect(() => {
     localStorage.setItem(
       'sun_beauty_currency',
@@ -535,7 +572,7 @@ export const StoreProvider: React.FC<{
   }, [currency]);
 
   // =========================================================
-  // LOCAL STORAGE SYNC
+  // CART STORAGE
   // =========================================================
 
   useEffect(() => {
@@ -544,6 +581,10 @@ export const StoreProvider: React.FC<{
       JSON.stringify(cart)
     );
   }, [cart]);
+
+  // =========================================================
+  // COUPON STORAGE
+  // =========================================================
 
   useEffect(() => {
     if (activeCoupon) {
@@ -837,8 +878,8 @@ export const StoreProvider: React.FC<{
           cartSubtotal
       );
     }, [
-      cartSubtotal,
       settings.freeShippingThreshold,
+      cartSubtotal,
     ]);
 
   // =========================================================
@@ -963,70 +1004,50 @@ export const StoreProvider: React.FC<{
 
       const newOrder: Order = {
         id: orderId,
-
         customerName:
           orderData.customerName,
-
         phone:
           orderData.phone,
-
         governorate:
           orderData.governorate,
-
         city:
           orderData.city,
-
         address:
           orderData.address,
-
         notes:
           orderData.notes,
-
         items:
           orderItems,
-
         subtotal:
           cartSubtotal,
-
         discount:
           cartDiscount,
-
         shipping:
           cartShipping,
-
         total:
           cartTotal,
-
         couponCode:
           activeCoupon?.code,
-
         paymentMethod:
           orderData.paymentMethod,
-
         senderTransferNumber:
           orderData.senderTransferNumber,
-
         status: 'new',
-
         createdAt:
           new Date().toISOString(),
-
         updatedAt:
           new Date().toISOString(),
       };
 
-      // Save locally
       await storageService.saveOrder(
         newOrder
       );
 
-      // Update local state
       setOrders((previous) => [
         newOrder,
         ...previous,
       ]);
 
-      // Try Firebase
       try {
         await firebaseService.saveOrder(
           newOrder
@@ -1038,7 +1059,6 @@ export const StoreProvider: React.FC<{
         );
       }
 
-      // Update coupon
       if (activeCoupon) {
         const updatedCoupon = {
           ...activeCoupon,
@@ -1060,7 +1080,6 @@ export const StoreProvider: React.FC<{
         );
       }
 
-      // Update stock
       for (const item of cart) {
         const product =
           products.find(
@@ -1130,29 +1149,22 @@ export const StoreProvider: React.FC<{
     }) => {
       const newReview: Review = {
         id: `rev-${Date.now()}`,
-
         productId:
           reviewData.productId,
-
         customerName:
           reviewData.customerName,
-
         rating:
           reviewData.rating,
-
         comment:
           reviewData.comment,
-
         date:
           reviewData.date ||
           new Date()
             .toISOString()
             .split('T')[0],
-
         verifiedPurchase:
           reviewData.verifiedPurchase ??
           true,
-
         status:
           reviewData.status ||
           'approved',
@@ -1220,11 +1232,9 @@ export const StoreProvider: React.FC<{
         language === 'ar'
           ? 'تم إضافة التقييم بنجاح'
           : 'Review Added',
-
         language === 'ar'
           ? 'تم حفظ التقييم ونشره في المتجر'
           : 'Review has been saved and published',
-
         'success'
       );
     },
@@ -1322,11 +1332,9 @@ export const StoreProvider: React.FC<{
         language === 'ar'
           ? 'تم حفظ التقييم'
           : 'Review Saved',
-
         language === 'ar'
           ? 'تم تحديث بيانات التقييم بنجاح'
           : 'Review updated successfully',
-
         'success'
       );
     },
@@ -1438,11 +1446,9 @@ export const StoreProvider: React.FC<{
         language === 'ar'
           ? 'تم تنظيف التقييمات'
           : 'Reviews Cleared',
-
         language === 'ar'
           ? 'تم حذف كافة التقييمات السابقة بنجاح'
           : 'All reviews have been deleted',
-
         'success'
       );
     }, [
@@ -1479,8 +1485,8 @@ export const StoreProvider: React.FC<{
         }
 
         return [
-          product,
           ...previous,
+          product,
         ];
       });
     },
@@ -1577,11 +1583,9 @@ export const StoreProvider: React.FC<{
         language === 'ar'
           ? 'تم حذف المنتجات'
           : 'Products Cleared',
-
         language === 'ar'
           ? 'تم مسح جميع المنتجات بنجاح'
           : 'All products have been removed successfully',
-
         'info'
       );
     }, [

@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Smartphone,
   Zap,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { formatPrice } from '../utils/helpers';
 import { sanitizeImageUrl } from '../utils/sanitizeImageUrl';
@@ -60,20 +62,19 @@ export const CheckoutPage: React.FC = () => {
     activeCoupon,
     applyCoupon,
     createOrder,
-    clearCart,
   } = useStore();
 
   const navigate = useNavigate();
+
   const isAr = language === 'ar';
-  const ArrowIcon = isAr
-    ? require('lucide-react').ArrowLeft
-    : require('lucide-react').ArrowRight;
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+
   const [governorate, setGovernorate] = useState(
     EGYPT_GOVERNORATES[0]
   );
+
   const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -81,51 +82,89 @@ export const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>('vodafone_cash');
 
-  const [senderTransferNumber, setSenderTransferNumber] = useState('');
-  const [transferError, setTransferError] = useState('');
+  const [senderTransferNumber, setSenderTransferNumber] =
+    useState('');
 
-  const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [transferError, setTransferError] =
+    useState('');
 
-  const [couponInput, setCouponInput] = useState('');
+  const [copiedType, setCopiedType] =
+    useState<string | null>(null);
+
+  const [couponInput, setCouponInput] =
+    useState('');
+
   const [couponMsg, setCouponMsg] = useState<{
     text: string;
     success: boolean;
   } | null>(null);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
 
-  const handleCopy = async (text: string, type: string) => {
+  // =========================================================
+  // COPY
+  // =========================================================
+
+  const handleCopy = async (
+    text: string,
+    type: string
+  ) => {
     try {
       await navigator.clipboard.writeText(text);
+
       setCopiedType(type);
 
       setTimeout(() => {
         setCopiedType(null);
       }, 2500);
-    } catch {
-      console.error('Failed to copy');
+    } catch (error) {
+      console.error(
+        'Failed to copy:',
+        error
+      );
     }
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  // =========================================================
+  // COUPON
+  // =========================================================
+
+  const handleApplyCoupon = (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
-    if (!couponInput.trim()) return;
+    if (!couponInput.trim()) {
+      return;
+    }
 
-    const res = applyCoupon(couponInput.trim());
+    const result = applyCoupon(
+      couponInput.trim()
+    );
 
     setCouponMsg({
-      text: res.message,
-      success: res.success,
+      text: result.message,
+      success: result.success,
     });
 
-    if (res.success) {
+    if (result.success) {
       setCouponInput('');
     }
   };
 
-  const handlePlaceOrder = async (e: React.FormEvent) => {
+  // =========================================================
+  // PLACE ORDER
+  // =========================================================
+
+  const handlePlaceOrder = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
 
     if (cart.length === 0) {
       return;
@@ -133,7 +172,7 @@ export const CheckoutPage: React.FC = () => {
 
     setTransferError('');
 
-    // Validate Vodafone Cash sender number
+    // Vodafone Cash validation
     if (
       paymentMethod === 'vodafone_cash' &&
       !senderTransferNumber.trim()
@@ -147,7 +186,7 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // Validate InstaPay sender number
+    // InstaPay validation
     if (
       paymentMethod === 'instapay' &&
       !senderTransferNumber.trim()
@@ -164,28 +203,33 @@ export const CheckoutPage: React.FC = () => {
     try {
       setIsSubmitting(true);
 
+      /*
+       * IMPORTANT:
+       * createOrder داخل StoreContext هو المسؤول
+       * عن حساب:
+       * - items
+       * - subtotal
+       * - discount
+       * - shipping
+       * - total
+       * - coupon
+       * - stock
+       *
+       * لذلك لا نرسل هذه البيانات مرة أخرى هنا.
+       */
+
       const newOrder = await createOrder({
         customerName: fullName.trim(),
+
         phone: phone.trim(),
+
         governorate,
+
         city: city.trim(),
+
         address: address.trim(),
+
         notes: notes.trim(),
-
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          productName: item.product.name,
-          price: item.product.price,
-          quantity: item.quantity,
-          image: item.product.images?.[0] || '',
-        })),
-
-        subtotal: cartSubtotal,
-        discount: cartDiscount,
-        shipping: cartShipping,
-        total: cartTotal,
-
-        currency,
 
         paymentMethod,
 
@@ -194,15 +238,23 @@ export const CheckoutPage: React.FC = () => {
           paymentMethod === 'instapay'
             ? senderTransferNumber.trim()
             : undefined,
-
-        couponCode: activeCoupon?.code,
       });
 
-      clearCart();
+      /*
+       * لا نستخدم clearCart هنا.
+       *
+       * createOrder داخل StoreContext
+       * يقوم بالفعل بمسح السلة بعد نجاح الطلب.
+       */
 
-      navigate(`/order-success/${newOrder.id}`);
+      navigate(
+        `/order-success/${newOrder.id}`
+      );
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error(
+        'Error creating order:',
+        error
+      );
 
       setTransferError(
         isAr
@@ -213,6 +265,10 @@ export const CheckoutPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  // =========================================================
+  // EMPTY CART
+  // =========================================================
 
   if (cart.length === 0) {
     return (
@@ -239,11 +295,16 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
+  // =========================================================
+  // PAGE
+  // =========================================================
+
   return (
     <div
       id="checkout-page-container"
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16"
     >
+      {/* HEADER */}
       <div className="mb-10 text-center max-w-xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2D5A27]/10 text-[#2D5A27] text-xs font-bold mb-3">
           <Lock className="w-3.5 h-3.5" />
@@ -264,16 +325,21 @@ export const CheckoutPage: React.FC = () => {
         onSubmit={handlePlaceOrder}
         className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12"
       >
-        {/* =========================
-            Customer Information
-        ========================== */}
+        {/* =====================================================
+            CUSTOMER INFORMATION
+        ====================================================== */}
+
         <div className="lg:col-span-7 space-y-8">
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#2D5A27]/10 shadow-sm space-y-6">
             <h3 className="font-serif-luxury text-xl font-bold text-[#1C241E] flex items-center gap-2 border-b border-stone-100 pb-3">
               <Truck className="w-5 h-5 text-[#2D5A27]" />
 
-              <span>{t.checkout.shippingInfo}</span>
+              <span>
+                {t.checkout.shippingInfo}
+              </span>
             </h3>
+
+            {/* NAME + PHONE */}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -285,9 +351,15 @@ export const CheckoutPage: React.FC = () => {
                   type="text"
                   required
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) =>
+                    setFullName(
+                      e.target.value
+                    )
+                  }
                   placeholder={
-                    isAr ? 'مثال: سارة أحمد' : 'e.g. Sarah Ahmed'
+                    isAr
+                      ? 'مثال: سارة أحمد'
+                      : 'e.g. Sarah Ahmed'
                   }
                   className="w-full px-3.5 py-2.5 text-xs border border-stone-200 rounded-xl bg-[#FAFAF8] focus:bg-white focus:outline-none focus:border-[#2D5A27]"
                 />
@@ -302,14 +374,22 @@ export const CheckoutPage: React.FC = () => {
                   type="tel"
                   required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) =>
+                    setPhone(
+                      e.target.value
+                    )
+                  }
                   placeholder={
-                    isAr ? 'مثال: 01012345678' : 'e.g. 01012345678'
+                    isAr
+                      ? 'مثال: 01012345678'
+                      : 'e.g. 01012345678'
                   }
                   className="w-full px-3.5 py-2.5 text-xs border border-stone-200 rounded-xl bg-[#FAFAF8] focus:bg-white focus:outline-none focus:border-[#2D5A27]"
                 />
               </div>
             </div>
+
+            {/* GOVERNORATE + CITY */}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -320,14 +400,23 @@ export const CheckoutPage: React.FC = () => {
                 <select
                   required
                   value={governorate}
-                  onChange={(e) => setGovernorate(e.target.value)}
+                  onChange={(e) =>
+                    setGovernorate(
+                      e.target.value
+                    )
+                  }
                   className="w-full px-3.5 py-2.5 text-xs border border-stone-200 rounded-xl bg-[#FAFAF8] focus:bg-white focus:outline-none focus:border-[#2D5A27]"
                 >
-                  {EGYPT_GOVERNORATES.map((gov) => (
-                    <option key={gov} value={gov}>
-                      {gov}
-                    </option>
-                  ))}
+                  {EGYPT_GOVERNORATES.map(
+                    (gov) => (
+                      <option
+                        key={gov}
+                        value={gov}
+                      >
+                        {gov}
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
 
@@ -340,7 +429,11 @@ export const CheckoutPage: React.FC = () => {
                   type="text"
                   required
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={(e) =>
+                    setCity(
+                      e.target.value
+                    )
+                  }
                   placeholder={
                     isAr
                       ? 'المنطقة أو الحي'
@@ -351,6 +444,8 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
+            {/* ADDRESS */}
+
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
                 {t.checkout.address} *
@@ -360,7 +455,11 @@ export const CheckoutPage: React.FC = () => {
                 required
                 rows={2}
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(e) =>
+                  setAddress(
+                    e.target.value
+                  )
+                }
                 placeholder={
                   isAr
                     ? 'اسم الشارع، رقم العمارة، رقم الشقة أو علامة مميزة'
@@ -370,6 +469,8 @@ export const CheckoutPage: React.FC = () => {
               />
             </div>
 
+            {/* NOTES */}
+
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1.5">
                 {t.checkout.notes}
@@ -378,7 +479,11 @@ export const CheckoutPage: React.FC = () => {
               <input
                 type="text"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) =>
+                  setNotes(
+                    e.target.value
+                  )
+                }
                 placeholder={
                   isAr
                     ? 'أي ملاحظات لمندوب الشحن...'
@@ -389,31 +494,40 @@ export const CheckoutPage: React.FC = () => {
             </div>
           </div>
 
-          {/* =========================
-              Payment Methods
-          ========================== */}
+          {/* ===================================================
+              PAYMENT METHODS
+          ==================================================== */}
+
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#2D5A27]/10 shadow-sm space-y-5">
             <h3 className="font-serif-luxury text-xl font-bold text-[#1C241E] flex items-center gap-2 border-b border-stone-100 pb-3">
               <ShieldCheck className="w-5 h-5 text-[#2D5A27]" />
 
-              <span>{t.checkout.paymentMethod}</span>
+              <span>
+                {t.checkout.paymentMethod}
+              </span>
             </h3>
+
+            {/* ERROR */}
 
             {transferError && (
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
 
-                <span>{transferError}</span>
+                <span>
+                  {transferError}
+                </span>
               </div>
             )}
 
             <div className="space-y-3">
-              {/* =========================
-                  Vodafone Cash
-              ========================== */}
+              {/* ===============================================
+                  VODAFONE CASH
+              ================================================= */}
+
               <div
                 className={`rounded-2xl border transition-all overflow-hidden ${
-                  paymentMethod === 'vodafone_cash'
+                  paymentMethod ===
+                  'vodafone_cash'
                     ? 'border-[#2D5A27] bg-[#2D5A27]/5 ring-2 ring-[#2D5A27]/10'
                     : 'border-stone-200 hover:bg-stone-50'
                 }`}
@@ -425,19 +539,32 @@ export const CheckoutPage: React.FC = () => {
                       name="payment"
                       value="vodafone_cash"
                       checked={
-                        paymentMethod === 'vodafone_cash'
+                        paymentMethod ===
+                        'vodafone_cash'
                       }
                       onChange={() => {
-                        setPaymentMethod('vodafone_cash');
-                        setTransferError('');
-                        setSenderTransferNumber('');
+                        setPaymentMethod(
+                          'vodafone_cash'
+                        );
+
+                        setTransferError(
+                          ''
+                        );
+
+                        setSenderTransferNumber(
+                          ''
+                        );
                       }}
                       className="accent-[#2D5A27]"
                     />
 
                     <div>
                       <span className="text-xs font-bold text-[#1C241E]">
-                        {t.checkout.paymentMethods.vodafoneCash}
+                        {
+                          t.checkout
+                            .paymentMethods
+                            .vodafoneCash
+                        }
                       </span>
 
                       <p className="text-[11px] text-stone-500">
@@ -448,10 +575,13 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <span className="text-lg">📱</span>
+                  <span className="text-lg">
+                    📱
+                  </span>
                 </label>
 
-                {paymentMethod === 'vodafone_cash' && (
+                {paymentMethod ===
+                  'vodafone_cash' && (
                   <div className="p-4 pt-2 border-t border-[#2D5A27]/15 bg-white/70 space-y-4">
                     <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200/80 space-y-2">
                       <div className="flex items-center justify-between gap-3">
@@ -474,18 +604,25 @@ export const CheckoutPage: React.FC = () => {
                           }
                           className="px-2.5 py-1 rounded-xl bg-white border border-rose-200 hover:bg-rose-100/50 text-[11px] font-bold text-rose-800 flex items-center gap-1 transition-all"
                         >
-                          {copiedType === 'vodafone' ? (
+                          {copiedType ===
+                          'vodafone' ? (
                             <>
                               <Check className="w-3 h-3 text-emerald-600" />
+
                               <span className="text-emerald-700">
-                                {isAr ? 'تم النسخ ✓' : 'Copied ✓'}
+                                {isAr
+                                  ? 'تم النسخ ✓'
+                                  : 'Copied ✓'}
                               </span>
                             </>
                           ) : (
                             <>
                               <Copy className="w-3 h-3 text-rose-700" />
+
                               <span>
-                                {isAr ? 'نسخ الرقم' : 'Copy Number'}
+                                {isAr
+                                  ? 'نسخ الرقم'
+                                  : 'Copy Number'}
                               </span>
                             </>
                           )}
@@ -528,14 +665,20 @@ export const CheckoutPage: React.FC = () => {
                       <input
                         type="tel"
                         required
-                        value={senderTransferNumber}
+                        value={
+                          senderTransferNumber
+                        }
                         onChange={(e) => {
                           setSenderTransferNumber(
                             e.target.value
                           );
 
-                          if (transferError) {
-                            setTransferError('');
+                          if (
+                            transferError
+                          ) {
+                            setTransferError(
+                              ''
+                            );
                           }
                         }}
                         placeholder={
@@ -560,12 +703,14 @@ export const CheckoutPage: React.FC = () => {
                 )}
               </div>
 
-              {/* =========================
-                  InstaPay
-              ========================== */}
+              {/* ===============================================
+                  INSTAPAY
+              ================================================= */}
+
               <div
                 className={`rounded-2xl border transition-all overflow-hidden ${
-                  paymentMethod === 'instapay'
+                  paymentMethod ===
+                  'instapay'
                     ? 'border-[#2D5A27] bg-[#2D5A27]/5 ring-2 ring-[#2D5A27]/10'
                     : 'border-stone-200 hover:bg-stone-50'
                 }`}
@@ -576,18 +721,33 @@ export const CheckoutPage: React.FC = () => {
                       type="radio"
                       name="payment"
                       value="instapay"
-                      checked={paymentMethod === 'instapay'}
+                      checked={
+                        paymentMethod ===
+                        'instapay'
+                      }
                       onChange={() => {
-                        setPaymentMethod('instapay');
-                        setTransferError('');
-                        setSenderTransferNumber('');
+                        setPaymentMethod(
+                          'instapay'
+                        );
+
+                        setTransferError(
+                          ''
+                        );
+
+                        setSenderTransferNumber(
+                          ''
+                        );
                       }}
                       className="accent-[#2D5A27]"
                     />
 
                     <div>
                       <span className="text-xs font-bold text-[#1C241E]">
-                        {t.checkout.paymentMethods.instapay}
+                        {
+                          t.checkout
+                            .paymentMethods
+                            .instapay
+                        }
                       </span>
 
                       <p className="text-[11px] text-stone-500">
@@ -598,10 +758,13 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <span className="text-lg">⚡</span>
+                  <span className="text-lg">
+                    ⚡
+                  </span>
                 </label>
 
-                {paymentMethod === 'instapay' && (
+                {paymentMethod ===
+                  'instapay' && (
                   <div className="p-4 pt-2 border-t border-[#2D5A27]/15 bg-white/70 space-y-4">
                     <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-2">
                       <div className="flex items-center justify-between gap-3">
@@ -624,12 +787,15 @@ export const CheckoutPage: React.FC = () => {
                           }
                           className="px-2.5 py-1 rounded-xl bg-white border border-indigo-200 hover:bg-indigo-100/50 text-[11px] font-bold text-indigo-800 flex items-center gap-1 transition-all"
                         >
-                          {copiedType === 'instapay' ? (
+                          {copiedType ===
+                          'instapay' ? (
                             <>
                               <Check className="w-3 h-3 text-emerald-600" />
 
                               <span className="text-emerald-700">
-                                {isAr ? 'تم النسخ ✓' : 'Copied ✓'}
+                                {isAr
+                                  ? 'تم النسخ ✓'
+                                  : 'Copied ✓'}
                               </span>
                             </>
                           ) : (
@@ -682,14 +848,20 @@ export const CheckoutPage: React.FC = () => {
                       <input
                         type="text"
                         required
-                        value={senderTransferNumber}
+                        value={
+                          senderTransferNumber
+                        }
                         onChange={(e) => {
                           setSenderTransferNumber(
                             e.target.value
                           );
 
-                          if (transferError) {
-                            setTransferError('');
+                          if (
+                            transferError
+                          ) {
+                            setTransferError(
+                              ''
+                            );
                           }
                         }}
                         placeholder={
@@ -717,33 +889,42 @@ export const CheckoutPage: React.FC = () => {
           </div>
         </div>
 
-        {/* =========================
-            Order Summary
-        ========================== */}
+        {/* =====================================================
+            ORDER SUMMARY
+        ====================================================== */}
+
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#2D5A27]/10 shadow-sm space-y-6">
             <h3 className="font-serif-luxury text-xl font-bold text-[#1C241E] border-b border-stone-100 pb-3">
               {t.checkout.orderSummary}
             </h3>
 
+            {/* PRODUCTS */}
+
             <div className="max-h-60 overflow-y-auto space-y-3 pr-1">
               {cart.map((item) => (
                 <div
-                  key={item.product.id}
+                  key={`${item.product.id}-${item.selectedVariant || ''}`}
                   className="flex items-center gap-3"
                 >
                   <img
                     src={sanitizeImageUrl(
                       item.product.images?.[0]
                     )}
-                    alt={item.product.name[language]}
+                    alt={
+                      item.product
+                        .name[language]
+                    }
                     referrerPolicy="no-referrer"
                     className="w-12 h-12 rounded-xl object-cover bg-stone-100 shrink-0"
                   />
 
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-[#1C241E] truncate">
-                      {item.product.name[language]}
+                      {
+                        item.product
+                          .name[language]
+                      }
                     </p>
 
                     <p className="text-[11px] text-stone-500">
@@ -759,7 +940,8 @@ export const CheckoutPage: React.FC = () => {
 
                   <span className="text-xs font-bold text-[#2D5A27]">
                     {formatPrice(
-                      item.product.price * item.quantity,
+                      item.product.price *
+                        item.quantity,
                       currency,
                       settings.currencies,
                       language
@@ -769,20 +951,27 @@ export const CheckoutPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Coupon */}
+            {/* COUPON */}
+
             <div className="pt-3 border-t border-stone-100">
               <form
-                onSubmit={handleApplyCoupon}
+                onSubmit={
+                  handleApplyCoupon
+                }
                 className="flex gap-2"
               >
                 <input
                   type="text"
                   value={couponInput}
                   onChange={(e) =>
-                    setCouponInput(e.target.value)
+                    setCouponInput(
+                      e.target.value
+                    )
                   }
                   placeholder={
-                    isAr ? 'كود الخصم' : 'Coupon code'
+                    isAr
+                      ? 'كود الخصم'
+                      : 'Coupon code'
                   }
                   className="flex-1 px-3.5 py-2.5 text-xs border border-stone-200 rounded-xl bg-[#FAFAF8] focus:bg-white focus:outline-none focus:border-[#2D5A27]"
                 />
@@ -791,7 +980,9 @@ export const CheckoutPage: React.FC = () => {
                   type="submit"
                   className="px-4 py-2.5 rounded-xl bg-[#2D5A27] text-white text-xs font-bold"
                 >
-                  {isAr ? 'تطبيق' : 'Apply'}
+                  {isAr
+                    ? 'تطبيق'
+                    : 'Apply'}
                 </button>
               </form>
 
@@ -816,10 +1007,13 @@ export const CheckoutPage: React.FC = () => {
               )}
             </div>
 
-            {/* Totals */}
+            {/* TOTALS */}
+
             <div className="space-y-2 text-xs text-stone-600 pt-3 border-t border-stone-100">
               <div className="flex justify-between">
-                <span>{t.cart.subtotal}</span>
+                <span>
+                  {t.cart.subtotal}
+                </span>
 
                 <span className="font-semibold text-stone-900">
                   {formatPrice(
@@ -833,7 +1027,9 @@ export const CheckoutPage: React.FC = () => {
 
               {cartDiscount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
-                  <span>{t.cart.discount}</span>
+                  <span>
+                    {t.cart.discount}
+                  </span>
 
                   <span>
                     -
@@ -848,11 +1044,14 @@ export const CheckoutPage: React.FC = () => {
               )}
 
               <div className="flex justify-between">
-                <span>{t.cart.shipping}</span>
+                <span>
+                  {t.cart.shipping}
+                </span>
 
                 <span className="font-semibold text-stone-900">
                   {cartShipping === 0
-                    ? t.cart.freeShipping
+                    ? t.cart
+                        .freeShipping
                     : formatPrice(
                         cartShipping,
                         currency,
@@ -863,7 +1062,9 @@ export const CheckoutPage: React.FC = () => {
               </div>
 
               <div className="flex justify-between text-base font-bold text-[#1C241E] pt-3 border-t border-stone-200">
-                <span>{t.cart.total}</span>
+                <span>
+                  {t.cart.total}
+                </span>
 
                 <span className="text-xl font-bold text-[#2D5A27]">
                   {formatPrice(
@@ -876,7 +1077,8 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Place Order */}
+            {/* PLACE ORDER */}
+
             <div className="pt-2">
               <button
                 type="submit"
@@ -889,10 +1091,15 @@ export const CheckoutPage: React.FC = () => {
                     ? isAr
                       ? 'جاري تأكيد الطلب...'
                       : 'Processing...'
-                    : t.checkout.placeOrder}
+                    : t.checkout
+                        .placeOrder}
                 </span>
 
-                <ArrowIcon className="w-4 h-4" />
+                {isAr ? (
+                  <ArrowLeft className="w-4 h-4" />
+                ) : (
+                  <ArrowRight className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
@@ -901,3 +1108,5 @@ export const CheckoutPage: React.FC = () => {
     </div>
   );
 };
+
+export default CheckoutPage;

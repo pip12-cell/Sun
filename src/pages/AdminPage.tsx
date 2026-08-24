@@ -1107,148 +1107,407 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: ORDERS MANAGEMENT */}
-      {activeTab === 'orders' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-xl font-bold text-[#1C241E]">
-              {isAr ? 'إدارة الطلبات' : 'Orders Management'}
-            </h2>
+      {/* =========================================================
+    TAB 3: ORDERS MANAGEMENT
+========================================================= */}
+{activeTab === 'orders' && (
+  <div className="space-y-6">
 
-            {/* Status Filter */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(['all', 'new', 'processing', 'shipped', 'completed', 'cancelled'] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setOrderStatusFilter(st as OrderStatus | 'all')}
-                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl capitalize transition-colors ${
-                    orderStatusFilter === st
-                      ? 'bg-[#2D5A27] text-white'
-                      : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {st === 'all' ? (isAr ? 'الكل' : 'All') : st}
-                </button>
-              ))}
-            </div>
-          </div>
+    {/* Header */}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <h2 className="text-xl font-bold text-[#1C241E]">
+        {isAr ? 'إدارة الطلبات' : 'Orders Management'}
+      </h2>
 
-          {orders.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-[#2D5A27]/10 p-6 shadow-sm">
-              <p className="text-xs text-stone-400 py-6 text-center">
-                {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {orders
-                .filter((o) => (orderStatusFilter === 'all' ? true : o.status === orderStatusFilter))
-                .map((ord) => {
-                  const customerWaUrl = getWhatsAppLink(
-                    ord.customerPhone,
-                    isAr
-                      ? `مرحباً ${ord.customerName}! نتواصل معكِ من Sun Beauty بخصوص طلبكِ رقم ${ord.id} 🌿`
-                      : `Hello ${ord.customerName}! Reaching out from Sun Beauty regarding order ${ord.id} 🌿`
-                  );
+      {/* Status Filter */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {(
+          [
+            'all',
+            'new',
+            'processing',
+            'shipped',
+            'completed',
+            'cancelled',
+          ] as const
+        ).map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() =>
+              setOrderStatusFilter(
+                st as OrderStatus | 'all'
+              )
+            }
+            className={`px-3 py-1.5 text-[11px] font-bold rounded-xl capitalize transition-colors ${
+              orderStatusFilter === st
+                ? 'bg-[#2D5A27] text-white'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
+            }`}
+          >
+            {st === 'all'
+              ? isAr
+                ? 'الكل'
+                : 'All'
+              : st}
+          </button>
+        ))}
+      </div>
+    </div>
 
-                  return (
-                    <div
-                      key={ord.id}
-                      className="p-6 rounded-3xl bg-white border border-[#2D5A27]/10 shadow-xs space-y-4"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-sm text-[#2D5A27]">
-                              #{ord.id}
-                            </span>
-                            <span className="text-xs text-stone-400">
-                              {formatOrderDate(ord.createdAt)}
-                            </span>
-                          </div>
-                          <h4 className="font-bold text-sm text-stone-900 mt-1">
-                            {ord.customerName} ({ord.customerPhone})
-                          </h4>
-                          <p className="text-xs text-stone-500">
-                            📍 {ord.governorate}, {ord.city} - {ord.address}
-                          </p>
-                        </div>
+    {/* Orders */}
+    {orders.length === 0 ? (
+      <div className="bg-white rounded-3xl border border-[#2D5A27]/10 p-6 shadow-sm">
+        <p className="text-xs text-stone-400 py-6 text-center">
+          {isAr
+            ? 'لا توجد طلبات مسجلة حتى الآن.'
+            : 'No orders in database yet.'}
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-4">
 
-                        {/* Status Selector & WhatsApp Contact */}
-                        <div className="flex items-center gap-3">
-                          <select
-                            value={ord.status}
-                            onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
-                            className="bg-[#FAFAF8] border border-stone-200 text-xs font-bold rounded-xl px-3 py-2 text-[#2D5A27] focus:outline-none"
-                          >
-                            <option value="new">🆕 New</option>
-                            <option value="processing">⚙️ Processing</option>
-                            <option value="shipped">🚚 Shipped</option>
-                            <option value="completed">✅ Completed</option>
-                            <option value="cancelled">❌ Cancelled</option>
-                          </select>
+        {orders
+          .filter((order) => {
+            if (orderStatusFilter === 'all') {
+              return true;
+            }
 
-                          <a
-                            href={customerWaUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-xs flex items-center gap-1.5"
-                            title="Chat with customer on WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                            <span className="hidden sm:inline">واتساب</span>
-                          </a>
+            return order.status === orderStatusFilter;
+          })
+          .map((ord) => {
 
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ type: 'order', id: ord.id, title: `${ord.customerName} (#${ord.id})` })}
-                            className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title={isAr ? 'حذف الطلب' : 'Delete Order'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
+            /* =================================================
+               SAFE CUSTOMER DATA
+            ================================================= */
 
-                      {/* Order items */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {ord.items.map((item, i) => (
-                          <div
-                            key={i}
-                            className="p-2.5 rounded-xl bg-[#FAFAF8] border border-stone-100 flex items-center justify-between text-xs"
-                          >
-                            <span className="font-semibold text-stone-800 truncate">
-                              {item.productName[language]} × {item.quantity}
-                            </span>
-                            <span className="font-bold text-[#2D5A27]">
-                              {formatPrice(item.price * item.quantity, currency, settings.currencies, language)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+            const orderId = ord?.id || '—';
 
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 text-stone-600 border-t border-stone-100">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span>طريقة الدفع: <b className="uppercase">{ord.paymentMethod}</b></span>
-                          {ord.senderTransferNumber && (
-                            <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-[11px] flex items-center gap-1">
-                              <span>📱 المحوّل منه:</span>
-                              <span className="font-mono" dir="ltr">{ord.senderTransferNumber}</span>
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm font-bold text-[#2D5A27]">
-                          الإجمالي: {formatPrice(ord.total, currency, settings.currencies, language)}
-                        </span>
-                      </div>
+            const customerName =
+              ord?.customerName || '—';
+
+            const customerPhone =
+              ord?.customerPhone ||
+              ord?.phone ||
+              '';
+
+            const governorate =
+              ord?.governorate || '—';
+
+            const city =
+              ord?.city || '—';
+
+            const address =
+              ord?.address || '—';
+
+            const paymentMethod =
+              ord?.paymentMethod || '—';
+
+            const senderTransferNumber =
+              ord?.senderTransferNumber || '';
+
+            const status =
+              ord?.status || 'new';
+
+            const total =
+              Number(ord?.total) || 0;
+
+            const orderItems = Array.isArray(ord?.items)
+              ? ord.items
+              : [];
+
+            /* =================================================
+               SAFE WHATSAPP URL
+            ================================================= */
+
+            const customerWaUrl = getWhatsAppLink(
+              customerPhone,
+              isAr
+                ? `مرحباً ${customerName}! نتواصل معك من Sun Beauty بخصوص طلبك رقم ${orderId} 🌿`
+                : `Hello ${customerName}! Reaching out from Sun Beauty regarding order ${orderId} 🌿`
+            );
+
+            return (
+              <div
+                key={orderId}
+                className="p-6 rounded-3xl bg-white border border-[#2D5A27]/10 shadow-sm space-y-4"
+              >
+
+                {/* =================================================
+                   ORDER HEADER
+                ================================================= */}
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+
+                  {/* Customer Info */}
+                  <div className="min-w-0">
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-sm text-[#2D5A27]">
+                        #{orderId}
+                      </span>
+
+                      <span className="text-xs text-stone-400">
+                        {formatOrderDate(ord?.createdAt)}
+                      </span>
                     </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      )}
+
+                    <h4 className="font-bold text-sm text-stone-900 mt-1">
+                      {customerName}
+                    </h4>
+
+                    {customerPhone && (
+                      <p
+                        className="text-xs text-stone-500 mt-1"
+                        dir="ltr"
+                      >
+                        📞 {customerPhone}
+                      </p>
+                    )}
+
+                    <p className="text-xs text-stone-500 mt-1">
+                      📍 {governorate}
+                      {city !== '—'
+                        ? `, ${city}`
+                        : ''}
+                    </p>
+
+                    {address !== '—' && (
+                      <p className="text-xs text-stone-400 mt-1">
+                        {address}
+                      </p>
+                    )}
+
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+
+                    {/* Status */}
+                    <select
+                      value={status}
+                      onChange={(e) => {
+                        try {
+                          updateOrderStatus(
+                            orderId,
+                            e.target.value as OrderStatus
+                          );
+                        } catch (error) {
+                          console.error(
+                            'Error updating order status:',
+                            error
+                          );
+                        }
+                      }}
+                      className="bg-[#FAFAF8] border border-stone-200 text-xs font-bold rounded-xl px-3 py-2 text-[#2D5A27] focus:outline-none"
+                    >
+                      <option value="new">
+                        🆕 New
+                      </option>
+
+                      <option value="processing">
+                        ⚙️ Processing
+                      </option>
+
+                      <option value="shipped">
+                        🚚 Shipped
+                      </option>
+
+                      <option value="completed">
+                        ✅ Completed
+                      </option>
+
+                      <option value="cancelled">
+                        ❌ Cancelled
+                      </option>
+                    </select>
+
+                    {/* WhatsApp */}
+                    {customerPhone && (
+                      <a
+                        href={customerWaUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-xs flex items-center gap-1.5"
+                        title={
+                          isAr
+                            ? 'التواصل مع العميل عبر واتساب'
+                            : 'Chat with customer on WhatsApp'
+                        }
+                      >
+                        <MessageCircle className="w-4 h-4" />
+
+                        <span className="hidden sm:inline">
+                          واتساب
+                        </span>
+                      </a>
+                    )}
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDeleteTarget({
+                          type: 'order',
+                          id: orderId,
+                          title: `${customerName} (#${orderId})`,
+                        })
+                      }
+                      className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title={
+                        isAr
+                          ? 'حذف الطلب'
+                          : 'Delete Order'
+                      }
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                  </div>
+                </div>
+
+                {/* =================================================
+                   ORDER ITEMS
+                ================================================= */}
+
+                {orderItems.length === 0 ? (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                    {isAr
+                      ? '⚠️ لا توجد منتجات مسجلة داخل هذا الطلب.'
+                      : '⚠️ No products were found in this order.'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+
+                    {orderItems.map((item, index) => {
+
+                      /* ==========================================
+                         SAFE PRODUCT NAME
+                      ========================================== */
+
+                      let productName = 'منتج';
+
+                      if (
+                        item &&
+                        typeof item.productName === 'object' &&
+                        item.productName !== null
+                      ) {
+                        productName =
+                          item.productName?.[language] ||
+                          item.productName?.ar ||
+                          item.productName?.en ||
+                          'منتج';
+                      } else if (
+                        item &&
+                        typeof item.productName === 'string'
+                      ) {
+                        productName =
+                          item.productName;
+                      }
+
+                      /* ==========================================
+                         SAFE PRICE & QUANTITY
+                      ========================================== */
+
+                      const quantity =
+                        Number(item?.quantity) || 1;
+
+                      const price =
+                        Number(item?.price) || 0;
+
+                      const itemTotal =
+                        price * quantity;
+
+                      return (
+                        <div
+                          key={`${orderId}-${index}`}
+                          className="p-3 rounded-xl bg-[#FAFAF8] border border-stone-100 flex items-center justify-between gap-3 text-xs"
+                        >
+
+                          <span className="font-semibold text-stone-800 truncate">
+                            {productName} × {quantity}
+                          </span>
+
+                          <span className="font-bold text-[#2D5A27] shrink-0">
+                            {formatPrice(
+                              itemTotal,
+                              currency,
+                              settings.currencies,
+                              language
+                            )}
+                          </span>
+
+                        </div>
+                      );
+                    })}
+
+                  </div>
+                )}
+
+                {/* =================================================
+                   PAYMENT + TOTAL
+                ================================================= */}
+
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-3 border-t border-stone-100">
+
+                  <div className="flex flex-wrap items-center gap-2">
+
+                    <span className="text-stone-600">
+                      {isAr
+                        ? 'طريقة الدفع:'
+                        : 'Payment:'}{' '}
+
+                      <b className="uppercase text-stone-900">
+                        {paymentMethod}
+                      </b>
+                    </span>
+
+                    {senderTransferNumber && (
+                      <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-[11px] flex items-center gap-1">
+
+                        <span>
+                          📱{' '}
+                          {isAr
+                            ? 'المحوّل منه:'
+                            : 'Sender:'}
+                        </span>
+
+                        <span
+                          className="font-mono"
+                          dir="ltr"
+                        >
+                          {senderTransferNumber}
+                        </span>
+
+                      </span>
+                    )}
+
+                  </div>
+
+                  <span className="text-sm font-bold text-[#2D5A27]">
+                    {isAr
+                      ? 'الإجمالي:'
+                      : 'Total:'}{' '}
+
+                    {formatPrice(
+                      total,
+                      currency,
+                      settings.currencies,
+                      language
+                    )}
+                  </span>
+
+                </div>
+
+              </div>
+            );
+          })}
+
+      </div>
+    )}
+
+  </div>
+)}
 
       {/* TAB 4: CATEGORIES MANAGEMENT */}
       {activeTab === 'categories' && (
