@@ -880,20 +880,20 @@ export const AdminPage: React.FC = () => {
               {isAr ? 'أحدث الطلبات المستلمة' : 'Recent Customer Orders'}
             </h3>
             {orders && orders.length > 0 ? (
-<div className="overflow-x-auto">
-    <table className="w-full text-left rtl:text-right text-xs">
-      <thead>
-        <tr className="border-b border-stone-200 text-stone-400 font-semibold">
-          <th className="pb-3">#ID</th>
-          <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
-          <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
-          <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
-          <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
-          <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
-          <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-stone-100">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left rtl:text-right text-xs">
+                  <thead>
+                    <tr className="border-b border-stone-200 text-stone-400 font-semibold">
+                      <th className="pb-3">#ID</th>
+                        <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
+                          <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
+                            <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
+                              <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
+                                <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
+                                  <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
+                                    </tr>
+                  </thead>
+                    <tbody className="divide-y divide-stone-100">
         {orders.slice(0, 5).map((ord) => {
           if (!ord) return null;
           return (
