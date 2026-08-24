@@ -328,6 +328,23 @@ export const AdminPage: React.FC = () => {
     return Math.round(totalRevenue / valid.length);
   }, [orders, totalRevenue]);
 
+  // Safely formats an order's createdAt value, whether it's an ISO string
+  // (localStorage) or a Firestore Timestamp-like object ({ seconds }).
+  const formatOrderDate = (createdAt: any): string => {
+    try {
+      if (!createdAt) return '—';
+      if (typeof createdAt === 'string') {
+        return new Date(createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+      }
+      if (typeof createdAt === 'object' && 'seconds' in createdAt) {
+        return new Date(createdAt.seconds * 1000).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+      }
+      return new Date(createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+    } catch (e) {
+      return '—';
+    }
+  };
+
   // Open Product Modal for Add/Edit
   const openProductModal = (prod?: Product) => {
     if (prod) {
@@ -885,53 +902,56 @@ export const AdminPage: React.FC = () => {
                   <thead>
                     <tr className="border-b border-stone-200 text-stone-400 font-semibold">
                       <th className="pb-3">#ID</th>
-                        <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
-                          <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
-                            <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
-                              <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
-                                <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
-                                  <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
-                                    </tr>
+                      <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
+                      <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
+                      <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
+                      <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
+                      <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
+                      <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
+                    </tr>
                   </thead>
-                    <tbody className="divide-y divide-stone-100">
-        {orders.slice(0, 5).map((ord) => {
-          if (!ord) return null;
-          return (
-            <tr key={ord.id || Math.random()} className="hover:bg-[#FAFAF8]">
-              <td className="py-3 font-mono font-bold text-[#2D5A27]">
-                {ord.id || 'N/A'}
-              </td>
-              <td className="py-3 font-semibold text-stone-900">
-                {ord.customerName || ord.shippingAddress?.fullName || (isAr ? 'زائر' : 'Guest')}
-              </td>
-              <td className="py-3 text-stone-600">
-                {Array.isArray(ord.items) ? ord.items.length : 0} {isAr ? 'منتجات' : 'items'}
-              </td>
-              <td className="py-3 font-bold text-[#2D5A27]">
-                {formatPrice(ord.total || 0, currency, settings?.currencies, language)}
-              </td>
-              <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
-                {ord.paymentMethod || 'N/A'}
-              </td>
-              <td className="py-3">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
-                  {ord.status || 'new'}
-                </span>
-              </td>
-              <td className="py-3 text-stone-400 text-[11px]">
-                {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString() : '—'}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-) : (
-  <p className="text-xs text-stone-400 py-6 text-center">
-    {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
-  </p>
-)}
+                  <tbody className="divide-y divide-stone-100">
+                    {orders.slice(0, 5).map((ord) => {
+                      if (!ord) return null;
+                      return (
+                        <tr key={ord.id || Math.random()} className="hover:bg-[#FAFAF8]">
+                          <td className="py-3 font-mono font-bold text-[#2D5A27]">
+                            {ord.id || 'N/A'}
+                          </td>
+                          <td className="py-3 font-semibold text-stone-900">
+                            {ord.customerName || ord.shippingAddress?.fullName || (isAr ? 'زائر' : 'Guest')}
+                          </td>
+                          <td className="py-3 text-stone-600">
+                            {Array.isArray(ord.items) ? ord.items.length : 0} {isAr ? 'منتجات' : 'items'}
+                          </td>
+                          <td className="py-3 font-bold text-[#2D5A27]">
+                            {formatPrice(ord.total || 0, currency, settings?.currencies, language)}
+                          </td>
+                          <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
+                            {ord.paymentMethod || 'N/A'}
+                          </td>
+                          <td className="py-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
+                              {ord.status || 'new'}
+                            </span>
+                          </td>
+                          <td className="py-3 text-stone-400 text-[11px]">
+                            {formatOrderDate(ord.createdAt)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-stone-400 py-6 text-center">
+                {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB 2: PRODUCTS CRUD */}
       {activeTab === 'products' && (
@@ -1088,182 +1108,145 @@ export const AdminPage: React.FC = () => {
       )}
 
       {/* TAB 3: ORDERS MANAGEMENT */}
-     {activeTab === 'orders' && (
-  <div className="space-y-6">
-    <h2 className="text-xl font-bold text-[#1C241E]">
-      {isAr ? 'إدارة الطلبات' : 'Orders Management'}
-    </h2>
+      {activeTab === 'orders' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-[#1C241E]">
+              {isAr ? 'إدارة الطلبات' : 'Orders Management'}
+            </h2>
 
-    <div className="bg-white rounded-3xl border border-[#2D5A27]/10 p-6 shadow-sm overflow-x-auto">
-      {orders && orders.length > 0 ? (
-        <table className="w-full text-left rtl:text-right text-xs">
-          <thead>
-            <tr className="border-b border-stone-200 text-stone-400 font-semibold">
-              <th className="pb-3">#ID</th>
-              <th className="pb-3">{isAr ? 'العميل' : 'Customer'}</th>
-              <th className="pb-3">{isAr ? 'المنتجات' : 'Items'}</th>
-              <th className="pb-3">{isAr ? 'الإجمالي' : 'Total'}</th>
-              <th className="pb-3">{isAr ? 'طريقة الدفع' : 'Payment'}</th>
-              <th className="pb-3">{isAr ? 'الحالة' : 'Status'}</th>
-              <th className="pb-3">{isAr ? 'تاريخ الطلب' : 'Date'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {orders.map((ord) => {
-              if (!ord) return null;
-
-              // معالجة صريحة لتاريخ الفايربيس لتجنب الشاشة البيضاء
-              let dateStr = '—';
-              try {
-                if (typeof ord.createdAt === 'string') {
-                  dateStr = new Date(ord.createdAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
-                } else if (ord.createdAt && typeof ord.createdAt === 'object' && 'seconds' in ord.createdAt) {
-                  dateStr = new Date(ord.createdAt.seconds * 1000).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
-                }
-              } catch (e) {
-                dateStr = '—';
-              }
-
-              return (
-                <tr key={ord.id || Math.random()} className="hover:bg-[#FAFAF8]">
-                  <td className="py-3 font-mono font-bold text-[#2D5A27]">{ord.id || 'N/A'}</td>
-                  <td className="py-3 font-semibold text-stone-900">
-                    {ord.customerName || ord.shippingAddress?.fullName || (isAr ? 'زائر' : 'Guest')}
-                  </td>
-                  <td className="py-3 text-stone-600">
-                    {Array.isArray(ord.items) ? ord.items.length : 0} {isAr ? 'منتجات' : 'items'}
-                  </td>
-                  <td className="py-3 font-bold text-[#2D5A27]">
-                    {formatPrice(ord.total || 0, currency, settings?.currencies, language)}
-                  </td>
-                  <td className="py-3 uppercase text-[10px] font-bold text-stone-500">
-                    {ord.paymentMethod || 'N/A'}
-                  </td>
-                  <td className="py-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A27]/10 text-[#2D5A27]">
-                      {ord.status || 'new'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-stone-400 text-[11px]">{dateStr}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-xs text-stone-400 py-6 text-center">
-          {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
-        </p>
-      )}
-    </div>
-  </div>
-)}
-
-          <div className="space-y-4">
-            {orders
-              .filter((o) => (orderStatusFilter === 'all' ? true : o.status === orderStatusFilter))
-              .map((ord) => {
-                const customerWaUrl = getWhatsAppLink(
-                  ord.customerPhone,
-                  isAr
-                    ? `مرحباً ${ord.customerName}! نتواصل معكِ من Sun Beauty بخصوص طلبكِ رقم ${ord.id} 🌿`
-                    : `Hello ${ord.customerName}! Reaching out from Sun Beauty regarding order ${ord.id} 🌿`
-                );
-
-                return (
-                  <div
-                    key={ord.id}
-                    className="p-6 rounded-3xl bg-white border border-[#2D5A27]/10 shadow-xs space-y-4"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-[#2D5A27]">
-                            #{ord.id}
-                          </span>
-                          <span className="text-xs text-stone-400">
-                            {new Date(ord.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-sm text-stone-900 mt-1">
-                          {ord.customerName} ({ord.customerPhone})
-                        </h4>
-                        <p className="text-xs text-stone-500">
-                          📍 {ord.governorate}, {ord.city} - {ord.address}
-                        </p>
-                      </div>
-
-                      {/* Status Selector & WhatsApp Contact */}
-                      <div className="flex items-center gap-3">
-                        <select
-                          value={ord.status}
-                          onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
-                          className="bg-[#FAFAF8] border border-stone-200 text-xs font-bold rounded-xl px-3 py-2 text-[#2D5A27] focus:outline-none"
-                        >
-                          <option value="new">🆕 New</option>
-                          <option value="processing">⚙️ Processing</option>
-                          <option value="shipped">🚚 Shipped</option>
-                          <option value="completed">✅ Completed</option>
-                          <option value="cancelled">❌ Cancelled</option>
-                        </select>
-
-                        <a
-                          href={customerWaUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2 rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-xs flex items-center gap-1.5"
-                          title="Chat with customer on WhatsApp"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          <span className="hidden sm:inline">واتساب</span>
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget({ type: 'order', id: ord.id, title: `${ord.customerName} (#${ord.id})` })}
-                          className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                          title={isAr ? 'حذف الطلب' : 'Delete Order'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Order items */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {ord.items.map((item, i) => (
-                        <div
-                          key={i}
-                          className="p-2.5 rounded-xl bg-[#FAFAF8] border border-stone-100 flex items-center justify-between text-xs"
-                        >
-                          <span className="font-semibold text-stone-800 truncate">
-                            {item.productName[language]} × {item.quantity}
-                          </span>
-                          <span className="font-bold text-[#2D5A27]">
-                            {formatPrice(item.price * item.quantity, currency, settings.currencies, language)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 text-stone-600 border-t border-stone-100">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>طريقة الدفع: <b className="uppercase">{ord.paymentMethod}</b></span>
-                        {ord.senderTransferNumber && (
-                          <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-[11px] flex items-center gap-1">
-                            <span>📱 المحوّل منه:</span>
-                            <span className="font-mono" dir="ltr">{ord.senderTransferNumber}</span>
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-[#2D5A27]">
-                        الإجمالي: {formatPrice(ord.total, currency, settings.currencies, language)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['all', 'new', 'processing', 'shipped', 'completed', 'cancelled'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setOrderStatusFilter(st as OrderStatus | 'all')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-xl capitalize transition-colors ${
+                    orderStatusFilter === st
+                      ? 'bg-[#2D5A27] text-white'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  {st === 'all' ? (isAr ? 'الكل' : 'All') : st}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {orders.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-[#2D5A27]/10 p-6 shadow-sm">
+              <p className="text-xs text-stone-400 py-6 text-center">
+                {isAr ? 'لا توجد طلبات مسجلة حتى الآن.' : 'No orders in database yet.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders
+                .filter((o) => (orderStatusFilter === 'all' ? true : o.status === orderStatusFilter))
+                .map((ord) => {
+                  const customerWaUrl = getWhatsAppLink(
+                    ord.customerPhone,
+                    isAr
+                      ? `مرحباً ${ord.customerName}! نتواصل معكِ من Sun Beauty بخصوص طلبكِ رقم ${ord.id} 🌿`
+                      : `Hello ${ord.customerName}! Reaching out from Sun Beauty regarding order ${ord.id} 🌿`
+                  );
+
+                  return (
+                    <div
+                      key={ord.id}
+                      className="p-6 rounded-3xl bg-white border border-[#2D5A27]/10 shadow-xs space-y-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-sm text-[#2D5A27]">
+                              #{ord.id}
+                            </span>
+                            <span className="text-xs text-stone-400">
+                              {formatOrderDate(ord.createdAt)}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-sm text-stone-900 mt-1">
+                            {ord.customerName} ({ord.customerPhone})
+                          </h4>
+                          <p className="text-xs text-stone-500">
+                            📍 {ord.governorate}, {ord.city} - {ord.address}
+                          </p>
+                        </div>
+
+                        {/* Status Selector & WhatsApp Contact */}
+                        <div className="flex items-center gap-3">
+                          <select
+                            value={ord.status}
+                            onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
+                            className="bg-[#FAFAF8] border border-stone-200 text-xs font-bold rounded-xl px-3 py-2 text-[#2D5A27] focus:outline-none"
+                          >
+                            <option value="new">🆕 New</option>
+                            <option value="processing">⚙️ Processing</option>
+                            <option value="shipped">🚚 Shipped</option>
+                            <option value="completed">✅ Completed</option>
+                            <option value="cancelled">❌ Cancelled</option>
+                          </select>
+
+                          <a
+                            href={customerWaUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-xs flex items-center gap-1.5"
+                            title="Chat with customer on WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="hidden sm:inline">واتساب</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ type: 'order', id: ord.id, title: `${ord.customerName} (#${ord.id})` })}
+                            className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title={isAr ? 'حذف الطلب' : 'Delete Order'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Order items */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {ord.items.map((item, i) => (
+                          <div
+                            key={i}
+                            className="p-2.5 rounded-xl bg-[#FAFAF8] border border-stone-100 flex items-center justify-between text-xs"
+                          >
+                            <span className="font-semibold text-stone-800 truncate">
+                              {item.productName[language]} × {item.quantity}
+                            </span>
+                            <span className="font-bold text-[#2D5A27]">
+                              {formatPrice(item.price * item.quantity, currency, settings.currencies, language)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 text-stone-600 border-t border-stone-100">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>طريقة الدفع: <b className="uppercase">{ord.paymentMethod}</b></span>
+                          {ord.senderTransferNumber && (
+                            <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-[11px] flex items-center gap-1">
+                              <span>📱 المحوّل منه:</span>
+                              <span className="font-mono" dir="ltr">{ord.senderTransferNumber}</span>
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-sm font-bold text-[#2D5A27]">
+                          الإجمالي: {formatPrice(ord.total, currency, settings.currencies, language)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1628,7 +1611,6 @@ export const AdminPage: React.FC = () => {
             {t.admin.tabs.settings}
           </h3>
 
-          {/* Store Name & Tagline */}
           {/* Store Logo Upload Section */}
           <div className="p-5 rounded-2xl bg-[#FAFAF8] border border-[#2D5A27]/20 space-y-3">
             <div className="flex items-center justify-between">

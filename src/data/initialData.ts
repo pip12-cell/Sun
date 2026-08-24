@@ -1,4 +1,11 @@
-import { Category, Coupon, DatabaseMeta, Product, Review, StoreSettings } from '../types';
+import {
+  Category,
+  Coupon,
+  DatabaseMeta,
+  Product,
+  Review,
+  StoreSettings,
+} from '../types';
 
 export const DATA_VERSION = 1;
 
@@ -13,8 +20,12 @@ export const INITIAL_CATEGORIES: Category[] = [
     id: 'cat-sweet',
     slug: 'sweet',
     name: { ar: 'سويت', en: 'Wax & Sweet' },
-    description: { ar: 'منتجات إزالة الشعر', en: 'Natural Honey Hair Removal' },
-    image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80',
+    description: {
+      ar: 'منتجات إزالة الشعر',
+      en: 'Natural Honey Hair Removal',
+    },
+    image:
+      'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80',
     icon: 'Sparkles',
     order: 1,
   },
@@ -22,8 +33,12 @@ export const INITIAL_CATEGORIES: Category[] = [
     id: 'cat-shower',
     slug: 'shower-gel',
     name: { ar: 'شاور جل', en: 'Shower Gel' },
-    description: { ar: 'جل الاستحمام المنعش', en: 'Refreshing Shower Gel' },
-    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80',
+    description: {
+      ar: 'جل الاستحمام المنعش',
+      en: 'Refreshing Shower Gel',
+    },
+    image:
+      'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=800&q=80',
     icon: 'Droplets',
     order: 2,
   },
@@ -31,8 +46,12 @@ export const INITIAL_CATEGORIES: Category[] = [
     id: 'cat-scrub',
     slug: 'scrubs',
     name: { ar: 'مقشرات', en: 'Scrubs' },
-    description: { ar: 'مقشرات الجسم والبشرة', en: 'Body Scrubs' },
-    image: 'https://images.unsplash.com/photo-1608248597262-83802996d929?auto=format&fit=crop&w=800&q=80',
+    description: {
+      ar: 'مقشرات الجسم والبشرة',
+      en: 'Body Scrubs',
+    },
+    image:
+      'https://images.unsplash.com/photo-1608248597262-83802996d929?auto=format&fit=crop&w=800&q=80',
     icon: 'Sparkles',
     order: 3,
   },
@@ -40,8 +59,12 @@ export const INITIAL_CATEGORIES: Category[] = [
     id: 'cat-whitening',
     slug: 'whitening-mask',
     name: { ar: 'ماسك للتفتيح', en: 'Whitening Mask' },
-    description: { ar: 'ماسكات تفتيح البشرة ', en: 'Whitening Masks' },
-    image: 'https://images.unsplash.com/photo-1567928254714-273f55093556?auto=format&fit=crop&w=800&q=80',
+    description: {
+      ar: 'ماسكات تفتيح البشرة',
+      en: 'Whitening Masks',
+    },
+    image:
+      'https://images.unsplash.com/photo-1567928254714-273f55093556?auto=format&fit=crop&w=800&q=80',
     icon: 'Sun',
     order: 4,
   },
@@ -49,17 +72,25 @@ export const INITIAL_CATEGORIES: Category[] = [
     id: 'cat-heel',
     slug: 'heel-gel',
     name: { ar: 'جل كعب غزال', en: 'Heel Gel' },
-    description: { ar: 'جل التوريد للقدمين ', en: 'Heel Gel' },
-    image: 'https://images.unsplash.com/photo-1519735777090-ec97162dc266?auto=format&fit=crop&w=800&q=80',
+    description: {
+      ar: 'جل التوريد للقدمين',
+      en: 'Heel Gel',
+    },
+    image:
+      'https://images.unsplash.com/photo-1519735777090-ec97162dc266?auto=format&fit=crop&w=800&q=80',
     icon: 'Heart',
     order: 5,
   },
   {
     id: 'cat-bleach',
     slug: 'bleaching-powder',
-    name: { ar: 'بودره للتشقير', en: 'Bleaching Powder' },
-    description: { ar: 'بودرة تشقير الشعر', en: 'Bleaching Powder' },
-    image: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=800&q=80',
+    name: { ar: 'بودرة للتشقير', en: 'Bleaching Powder' },
+    description: {
+      ar: 'بودرة تشقير الشعر',
+      en: 'Bleaching Powder',
+    },
+    image:
+      'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=800&q=80',
     icon: 'Sparkles',
     order: 6,
   },
@@ -70,11 +101,11 @@ export const INITIAL_PRODUCTS: Product[] = [
     id: 'prod-01',
     name: {
       ar: 'شريط صن سويت بالعسل الطبيعي',
-      en: 'Sun Sweet Strip with Natural Honey'
+      en: 'Sun Sweet Strip with Natural Honey',
     },
     description: {
       ar: 'شريط صن سويت بالعسل الطبيعي هو شريط لإزالة الشعر من الجذور، بتركيبة تحتوي على العسل الطبيعي، يساعد على إزالة الشعر بفعالية ويترك البشرة ناعمة.',
-      en: 'Sun Sweet Natural Honey Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.'
+      en: 'Sun Sweet Natural Honey Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.',
     },
     price: 30,
     categoryId: 'cat-sweet',
@@ -84,10 +115,29 @@ export const INITIAL_PRODUCTS: Product[] = [
     reviewCount: 0,
     featured: true,
     bestSeller: true,
-    newProduct: false
-  }
+    newProduct: false,
+  },
+  {
+    id: 'prod-02',
+    name: {
+      ar: 'شريط صن سويت بالورد',
+      en: 'Sun Sweet Strip with Natural Rose',
+    },
+    description: {
+      ar: 'شريط صن سويت بالورد هو شريط لإزالة الشعر من الجذور، بتركيبة تحتوي على الورد الطبيعي، يساعد على إزالة الشعر بفعالية ويترك البشرة ناعمة.',
+      en: 'Sun Sweet Natural Rose Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.',
+    },
+    price: 30,
+    categoryId: 'cat-sweet',
+    images: ['/Rose-strip.jpeg'],
+    stock: 2000,
+    rating: 5,
+    reviewCount: 0,
+    featured: true,
+    bestSeller: false,
+    newProduct: false,
+  },
 ];
-
 
 export const INITIAL_REVIEWS: Review[] = [];
 
