@@ -137,6 +137,66 @@ export const INITIAL_PRODUCTS: Product[] = [
     bestSeller: false,
     newProduct: false,
   },
+  {
+    id: 'prod-03',
+    name: {
+      ar: 'شريط صن سويت بالزيتون',
+      en: 'Sun Sweet Strip with Natural olive',
+    },
+    description: {
+      ar: 'شريط صن سويت بالزيتون هو شريط لإزالة الشعر من الجذور، بتركيبة تحتوي على الورد الطبيعي، يساعد على إزالة الشعر بفعالية ويترك البشرة ناعمة.',
+      en: 'Sun Sweet Natural Rose Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.',
+    },
+    price: 30,
+    categoryId: 'cat-sweet',
+    images: ['/Olive-strip.jpeg'],
+    stock: 2000,
+    rating: 5,
+    reviewCount: 0,
+    featured: true,
+    bestSeller: false,
+    newProduct: false,
+  },
+  {
+    id: 'prod-04',
+    name: {
+      ar: 'شريط صن سويت بالليمون',
+      en: 'Sun Sweet Strip with Natural Lemon ',
+    },
+    description: {
+      ar: 'شريط صن سويت بالليمون هو شريط لإزالة الشعر من الجذور، بتركيبة تحتوي على الورد الطبيعي، يساعد على إزالة الشعر بفعالية ويترك البشرة ناعمة.',
+      en: 'Sun Sweet Natural Rose Hair Removal Strip — a hair removal strip designed to remove hair from the roots, leaving the skin smooth and soft.',
+    },
+    price: 30,
+    categoryId: 'cat-sweet',
+    images: ['/Lemon-strip.jpeg'],
+    stock: 2000,
+    rating: 5,
+    reviewCount: 0,
+    featured: true,
+    bestSeller: false,
+    newProduct: false,
+  },
+  {
+  id: 'prod-05',
+  name: {
+    ar: 'شاور جل بزهور الربيع',
+    en: 'Spring Flowers Shower Gel',
+  },
+  description: {
+    ar: 'شاور جل بزهور الربيع بتركيبة منعشة ولطيفة تساعد على تنظيف البشرة وتركها ناعمة برائحة زهور الربيع الجميلة.',
+    en: 'Spring Flowers Shower Gel with a refreshing and gentle formula that helps cleanse the skin, leaving it soft with a beautiful spring flower fragrance.',
+  },
+  price: 90,
+  categoryId: 'cat-shower',
+  images: ['/Spring-Flowers-Shower-Gel.jpeg'],
+  stock: 2000,
+  rating: 5,
+  reviewCount: 0,
+  featured: true,
+  bestSeller: false,
+  newProduct: true,
+},
 ];
 
 export const INITIAL_REVIEWS: Review[] = [];
