@@ -7,6 +7,7 @@ import {
   Review,
   StoreSettings,
 } from '../types';
+
 import {
   DATA_VERSION,
   INITIAL_CATEGORIES,
@@ -16,6 +17,7 @@ import {
   INITIAL_REVIEWS,
   INITIAL_SETTINGS,
 } from '../data/initialData';
+
 import { firebaseService } from './firebaseService';
 
 const DB_NAME = 'SunBeautyDB';
@@ -32,7 +34,6 @@ const STORES = {
   WISHLIST: 'wishlist',
 } as const;
 
-// localStorage Cache Keys
 const LS_KEYS = {
   META: 'sun_beauty_meta_cache',
   PRODUCTS: 'sun_beauty_products_cache',
@@ -42,7 +43,7 @@ const LS_KEYS = {
   COUPONS: 'sun_beauty_coupons_cache',
   SETTINGS: 'sun_beauty_settings_cache',
   WISHLIST: 'sun_beauty_wishlist_cache',
-};
+} as const;
 
 class StorageService {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -50,14 +51,23 @@ class StorageService {
 
   constructor() {
     if (typeof window !== 'undefined' && 'indexedDB' in window) {
-      this.initDB();
+      this.initDB().catch((error) => {
+        console.warn('IndexedDB initialization failed:', error);
+        this.isIndexedDBAvailable = false;
+      });
     } else {
       this.isIndexedDBAvailable = false;
     }
   }
 
+  // =========================================================
+  // INDEXED DB
+  // =========================================================
+
   private initDB(): Promise<IDBDatabase> {
-    if (this.dbPromise) return this.dbPromise;
+    if (this.dbPromise) {
+      return this.dbPromise;
+    }
 
     this.dbPromise = new Promise((resolve, reject) => {
       try {
@@ -67,514 +77,1301 @@ class StorageService {
           const db = (event.target as IDBOpenDBRequest).result;
 
           if (!db.objectStoreNames.contains(STORES.META)) {
-            db.createObjectStore(STORES.META, { keyPath: 'key' });
+            db.createObjectStore(STORES.META, {
+              keyPath: 'key',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.PRODUCTS)) {
-            db.createObjectStore(STORES.PRODUCTS, { keyPath: 'id' });
+            db.createObjectStore(STORES.PRODUCTS, {
+              keyPath: 'id',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.CATEGORIES)) {
-            db.createObjectStore(STORES.CATEGORIES, { keyPath: 'id' });
+            db.createObjectStore(STORES.CATEGORIES, {
+              keyPath: 'id',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.ORDERS)) {
-            db.createObjectStore(STORES.ORDERS, { keyPath: 'id' });
+            db.createObjectStore(STORES.ORDERS, {
+              keyPath: 'id',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.REVIEWS)) {
-            db.createObjectStore(STORES.REVIEWS, { keyPath: 'id' });
+            db.createObjectStore(STORES.REVIEWS, {
+              keyPath: 'id',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.COUPONS)) {
-            db.createObjectStore(STORES.COUPONS, { keyPath: 'id' });
+            db.createObjectStore(STORES.COUPONS, {
+              keyPath: 'id',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
-            db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
+            db.createObjectStore(STORES.SETTINGS, {
+              keyPath: 'key',
+            });
           }
+
           if (!db.objectStoreNames.contains(STORES.WISHLIST)) {
-            db.createObjectStore(STORES.WISHLIST, { keyPath: 'id' });
+            db.createObjectStore(STORES.WISHLIST, {
+              keyPath: 'id',
+            });
           }
         };
 
         request.onsuccess = () => {
-          resolve(request.result);
+          const db = request.result;
+
+          db.onversionchange = () => {
+            db.close();
+          };
+
+          resolve(db);
         };
 
         request.onerror = () => {
           this.isIndexedDBAvailable = false;
           reject(request.error);
         };
-      } catch (err) {
+
+        request.onblocked = () => {
+          console.warn('IndexedDB open request is blocked.');
+        };
+      } catch (error) {
         this.isIndexedDBAvailable = false;
-        reject(err);
+        reject(error);
       }
     });
 
     return this.dbPromise;
   }
 
-  // Safe localStorage helper
+  // =========================================================
+  // LOCAL STORAGE HELPERS
+  // =========================================================
+
   private getFromLocalStorage<T>(key: string, fallback: T): T {
+    if (typeof window === 'undefined') {
+      return fallback;
+    }
+
     try {
       const data = localStorage.getItem(key);
-      return data ? (JSON.parse(data) as T) : fallback;
-    } catch {
+
+      if (!data) {
+        return fallback;
+      }
+
+      return JSON.parse(data) as T;
+    } catch (error) {
+      console.warn(`Failed to read localStorage key: ${key}`, error);
       return fallback;
     }
   }
 
   private saveToLocalStorage<T>(key: string, data: T): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     try {
       localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-      console.warn(`Failed to save to localStorage key: ${key}`, e);
+    } catch (error) {
+      console.warn(`Failed to save localStorage key: ${key}`, error);
     }
   }
 
-  // Generic IndexedDB operations
+  private removeFromLocalStorage(key: string): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Failed to remove localStorage key: ${key}`, error);
+    }
+  }
+
+  // =========================================================
+  // INDEXED DB HELPERS
+  // =========================================================
+
   private async getAllFromStore<T>(storeName: string): Promise<T[]> {
-    if (!this.isIndexedDBAvailable) return [];
+    if (!this.isIndexedDBAvailable) {
+      return [];
+    }
+
     try {
       const db = await this.initDB();
-      return new Promise((resolve) => {
-        const tx = db.transaction(storeName, 'readonly');
-        const store = tx.objectStore(storeName);
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+
+      return await new Promise<T[]>((resolve) => {
+        try {
+          const tx = db.transaction(storeName, 'readonly');
+          const store = tx.objectStore(storeName);
+          const request = store.getAll();
+
+          request.onsuccess = () => {
+            resolve((request.result || []) as T[]);
+          };
+
+          request.onerror = () => {
+            resolve([]);
+          };
+        } catch {
+          resolve([]);
+        }
       });
     } catch {
       return [];
     }
   }
 
-  private async putInStore(storeName: string, item: any): Promise<void> {
-    if (!this.isIndexedDBAvailable) return;
+  private async putInStore(
+    storeName: string,
+    item: any
+  ): Promise<void> {
+    if (!this.isIndexedDBAvailable) {
+      return;
+    }
+
     try {
       const db = await this.initDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const req = store.put(item);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+
+      await new Promise<void>((resolve, reject) => {
+        try {
+          const tx = db.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          const request = store.put(item);
+
+          request.onsuccess = () => {
+            resolve();
+          };
+
+          request.onerror = () => {
+            reject(request.error);
+          };
+        } catch (error) {
+          reject(error);
+        }
       });
-    } catch (e) {
-      console.warn(`Error writing to store ${storeName}`, e);
+    } catch (error) {
+      console.warn(
+        `Error writing to IndexedDB store ${storeName}:`,
+        error
+      );
     }
   }
 
-  private async deleteFromStore(storeName: string, key: string): Promise<void> {
-    if (!this.isIndexedDBAvailable) return;
+  private async deleteFromStore(
+    storeName: string,
+    key: string
+  ): Promise<void> {
+    if (!this.isIndexedDBAvailable) {
+      return;
+    }
+
     try {
       const db = await this.initDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const req = store.delete(key);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+
+      await new Promise<void>((resolve, reject) => {
+        try {
+          const tx = db.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          const request = store.delete(key);
+
+          request.onsuccess = () => {
+            resolve();
+          };
+
+          request.onerror = () => {
+            reject(request.error);
+          };
+        } catch (error) {
+          reject(error);
+        }
       });
-    } catch (e) {
-      console.warn(`Error deleting from store ${storeName}`, e);
+    } catch (error) {
+      console.warn(
+        `Error deleting from IndexedDB store ${storeName}:`,
+        error
+      );
     }
   }
 
   private async clearStore(storeName: string): Promise<void> {
-    if (!this.isIndexedDBAvailable) return;
+    if (!this.isIndexedDBAvailable) {
+      return;
+    }
+
     try {
       const db = await this.initDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const req = store.clear();
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+
+      await new Promise<void>((resolve, reject) => {
+        try {
+          const tx = db.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          const request = store.clear();
+
+          request.onsuccess = () => {
+            resolve();
+          };
+
+          request.onerror = () => {
+            reject(request.error);
+          };
+        } catch (error) {
+          reject(error);
+        }
       });
-    } catch (e) {
-      console.warn(`Error clearing store ${storeName}`, e);
+    } catch (error) {
+      console.warn(
+        `Error clearing IndexedDB store ${storeName}:`,
+        error
+      );
     }
   }
 
-  // --- INITIALIZATION & EMPTY DATABASE PROTECTION ---
+  // =========================================================
+  // DATABASE META
+  // =========================================================
+
   public async getDatabaseMeta(): Promise<DatabaseMeta | null> {
     try {
       if (this.isIndexedDBAvailable) {
         const db = await this.initDB();
-        const metaObj = await new Promise<{ key: string; value: DatabaseMeta } | undefined>((resolve) => {
-          const tx = db.transaction(STORES.META, 'readonly');
-          const store = tx.objectStore(STORES.META);
-          const req = store.get('db_meta');
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => resolve(undefined);
+
+        const result = await new Promise<
+          { key: string; value: DatabaseMeta } | undefined
+        >((resolve) => {
+          try {
+            const tx = db.transaction(STORES.META, 'readonly');
+            const store = tx.objectStore(STORES.META);
+            const request = store.get('db_meta');
+
+            request.onsuccess = () => {
+              resolve(request.result);
+            };
+
+            request.onerror = () => {
+              resolve(undefined);
+            };
+          } catch {
+            resolve(undefined);
+          }
         });
 
-        if (metaObj?.value) return metaObj.value;
+        if (result?.value) {
+          return result.value;
+        }
       }
     } catch {
-      // ignore
+      // fallback
     }
 
-    return this.getFromLocalStorage<DatabaseMeta | null>(LS_KEYS.META, null);
+    return this.getFromLocalStorage<DatabaseMeta | null>(
+      LS_KEYS.META,
+      null
+    );
   }
 
-  public async saveDatabaseMeta(meta: DatabaseMeta): Promise<void> {
+  public async saveDatabaseMeta(
+    meta: DatabaseMeta
+  ): Promise<void> {
     this.saveToLocalStorage(LS_KEYS.META, meta);
-    await this.putInStore(STORES.META, { key: 'db_meta', value: meta });
+
+    await this.putInStore(STORES.META, {
+      key: 'db_meta',
+      value: meta,
+    });
   }
+
+  // =========================================================
+  // INITIALIZE DATABASE
+  // =========================================================
 
   public async initializeDatabaseIfNeeded(): Promise<boolean> {
-    // 1. Initialize cloud Firestore
-    await firebaseService.initializeFirestoreIfNeeded();
+    try {
+      await firebaseService.initializeFirestoreIfNeeded();
+    } catch (error) {
+      console.warn(
+        'Firestore initialization warning:',
+        error
+      );
+    }
 
-    // 2. Initialize local cache if needed
     const existingMeta = await this.getDatabaseMeta();
-    if (existingMeta && existingMeta.initialized) {
+
+    if (existingMeta?.initialized) {
       return false;
     }
 
-    // Save Initial dataset to IndexedDB and LocalStorage cache
-    for (const prod of INITIAL_PRODUCTS) {
-      await this.putInStore(STORES.PRODUCTS, prod);
-    }
-    this.saveToLocalStorage(LS_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+    /*
+     * مهم:
+     * لا نقوم بإنشاء orders من INITIAL_DATA.
+     * الطلبات يجب أن تأتي من Firestore فقط.
+     */
 
-    for (const cat of INITIAL_CATEGORIES) {
-      await this.putInStore(STORES.CATEGORIES, cat);
+    for (const product of INITIAL_PRODUCTS) {
+      await this.putInStore(
+        STORES.PRODUCTS,
+        product
+      );
     }
-    this.saveToLocalStorage(LS_KEYS.CATEGORIES, INITIAL_CATEGORIES);
 
-    for (const rev of INITIAL_REVIEWS) {
-      await this.putInStore(STORES.REVIEWS, rev);
+    this.saveToLocalStorage(
+      LS_KEYS.PRODUCTS,
+      INITIAL_PRODUCTS
+    );
+
+    for (const category of INITIAL_CATEGORIES) {
+      await this.putInStore(
+        STORES.CATEGORIES,
+        category
+      );
     }
-    this.saveToLocalStorage(LS_KEYS.REVIEWS, INITIAL_REVIEWS);
 
-    for (const cp of INITIAL_COUPONS) {
-      await this.putInStore(STORES.COUPONS, cp);
+    this.saveToLocalStorage(
+      LS_KEYS.CATEGORIES,
+      INITIAL_CATEGORIES
+    );
+
+    for (const review of INITIAL_REVIEWS) {
+      await this.putInStore(
+        STORES.REVIEWS,
+        review
+      );
     }
-    this.saveToLocalStorage(LS_KEYS.COUPONS, INITIAL_COUPONS);
 
-    await this.putInStore(STORES.SETTINGS, { key: 'main_settings', value: INITIAL_SETTINGS });
-    this.saveToLocalStorage(LS_KEYS.SETTINGS, INITIAL_SETTINGS);
+    this.saveToLocalStorage(
+      LS_KEYS.REVIEWS,
+      INITIAL_REVIEWS
+    );
+
+    for (const coupon of INITIAL_COUPONS) {
+      await this.putInStore(
+        STORES.COUPONS,
+        coupon
+      );
+    }
+
+    this.saveToLocalStorage(
+      LS_KEYS.COUPONS,
+      INITIAL_COUPONS
+    );
+
+    await this.putInStore(
+      STORES.SETTINGS,
+      {
+        key: 'main_settings',
+        value: INITIAL_SETTINGS,
+      }
+    );
+
+    this.saveToLocalStorage(
+      LS_KEYS.SETTINGS,
+      INITIAL_SETTINGS
+    );
+
+    /*
+     * لا نمسح الطلبات هنا.
+     *
+     * لو موجودة في Firestore سيتم تحميلها.
+     * لو مش موجودة، تظل القائمة فاضية طبيعيًا.
+     */
 
     const meta: DatabaseMeta = {
       version: DATA_VERSION,
       initialized: true,
       updatedAt: new Date().toISOString(),
     };
+
     await this.saveDatabaseMeta(meta);
 
     return true;
   }
 
-  // --- PRODUCTS ---
+  // =========================================================
+  // PRODUCTS
+  // =========================================================
+
   public async getProducts(): Promise<Product[]> {
     try {
-      const cloudProducts = await firebaseService.getProducts();
-      if (cloudProducts) {
-        this.saveToLocalStorage(LS_KEYS.PRODUCTS, cloudProducts);
+      const cloudProducts =
+        await firebaseService.getProducts();
+
+      /*
+       * Firestore هو المصدر الأساسي.
+       *
+       * حتى لو النتيجة [] فهذا معناه أن Firestore
+       * فاضي فعلًا، وليس أننا نستخدم cache قديم.
+       */
+      if (Array.isArray(cloudProducts)) {
+        this.saveToLocalStorage(
+          LS_KEYS.PRODUCTS,
+          cloudProducts
+        );
+
+        for (const product of cloudProducts) {
+          await this.putInStore(
+            STORES.PRODUCTS,
+            product
+          );
+        }
+
         return cloudProducts;
       }
-    } catch {
-      // fallback to local
+    } catch (error) {
+      console.warn(
+        'Firestore getProducts failed:',
+        error
+      );
     }
 
-    const idbProducts = await this.getAllFromStore<Product>(STORES.PRODUCTS);
-    if (idbProducts && idbProducts.length > 0) {
-      this.saveToLocalStorage(LS_KEYS.PRODUCTS, idbProducts);
+    const idbProducts =
+      await this.getAllFromStore<Product>(
+        STORES.PRODUCTS
+      );
+
+    if (idbProducts.length > 0) {
       return idbProducts;
     }
 
-    const lsCache = this.getFromLocalStorage<Product[]>(LS_KEYS.PRODUCTS, []);
-    return lsCache;
+    return this.getFromLocalStorage<Product[]>(
+      LS_KEYS.PRODUCTS,
+      []
+    );
   }
 
-  public async saveProduct(product: Product): Promise<void> {
-    // 1. Cloud Firestore
-    await firebaseService.saveProduct(product).catch((e) => console.warn('Cloud save product:', e));
-    // 2. Local IndexedDB & Cache
-    await this.putInStore(STORES.PRODUCTS, product);
-    const current = this.getFromLocalStorage<Product[]>(LS_KEYS.PRODUCTS, []);
-    const idx = current.findIndex((p) => p.id === product.id);
-    if (idx >= 0) {
-      current[idx] = product;
+  public async saveProduct(
+    product: Product
+  ): Promise<void> {
+    await firebaseService.saveProduct(product);
+
+    await this.putInStore(
+      STORES.PRODUCTS,
+      product
+    );
+
+    const current =
+      this.getFromLocalStorage<Product[]>(
+        LS_KEYS.PRODUCTS,
+        []
+      );
+
+    const index = current.findIndex(
+      (item) => item.id === product.id
+    );
+
+    if (index >= 0) {
+      current[index] = product;
     } else {
       current.unshift(product);
     }
-    this.saveToLocalStorage(LS_KEYS.PRODUCTS, current);
+
+    this.saveToLocalStorage(
+      LS_KEYS.PRODUCTS,
+      current
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  public async deleteProduct(productId: string): Promise<void> {
-    // 1. Cloud Firestore
-    await firebaseService.deleteProduct(productId).catch((e) => console.warn('Cloud delete product:', e));
-    // 2. Local
-    await this.deleteFromStore(STORES.PRODUCTS, productId);
-    const current = this.getFromLocalStorage<Product[]>(LS_KEYS.PRODUCTS, []);
-    const filtered = current.filter((p) => p.id !== productId);
-    this.saveToLocalStorage(LS_KEYS.PRODUCTS, filtered);
+  public async deleteProduct(
+    productId: string
+  ): Promise<void> {
+    await firebaseService.deleteProduct(
+      productId
+    );
+
+    await this.deleteFromStore(
+      STORES.PRODUCTS,
+      productId
+    );
+
+    const current =
+      this.getFromLocalStorage<Product[]>(
+        LS_KEYS.PRODUCTS,
+        []
+      );
+
+    this.saveToLocalStorage(
+      LS_KEYS.PRODUCTS,
+      current.filter(
+        (product) => product.id !== productId
+      )
+    );
+
     await this.updateMetaTimestamp();
   }
 
   public async clearAllProducts(): Promise<void> {
-    // 1. Cloud Firestore
-    await firebaseService.clearAllProducts().catch((e) => console.warn('Cloud clear products:', e));
-    // 2. Local IndexedDB & LocalStorage
-    await this.clearStore(STORES.PRODUCTS);
-    this.saveToLocalStorage(LS_KEYS.PRODUCTS, []);
+    await firebaseService.clearAllProducts();
+
+    await this.clearStore(
+      STORES.PRODUCTS
+    );
+
+    this.saveToLocalStorage(
+      LS_KEYS.PRODUCTS,
+      []
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- CATEGORIES ---
+  // =========================================================
+  // CATEGORIES
+  // =========================================================
+
   public async getCategories(): Promise<Category[]> {
     try {
-      const cloudCats = await firebaseService.getCategories();
-      if (cloudCats && cloudCats.length > 0) {
-        this.saveToLocalStorage(LS_KEYS.CATEGORIES, cloudCats);
-        for (const c of cloudCats) {
-          this.putInStore(STORES.CATEGORIES, c).catch(() => {});
+      const cloudCategories =
+        await firebaseService.getCategories();
+
+      if (Array.isArray(cloudCategories)) {
+        this.saveToLocalStorage(
+          LS_KEYS.CATEGORIES,
+          cloudCategories
+        );
+
+        for (const category of cloudCategories) {
+          await this.putInStore(
+            STORES.CATEGORIES,
+            category
+          );
         }
-        return cloudCats;
+
+        return cloudCategories;
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      console.warn(
+        'Firestore getCategories failed:',
+        error
+      );
     }
 
-    const idbCategories = await this.getAllFromStore<Category>(STORES.CATEGORIES);
-    if (idbCategories && idbCategories.length > 0) {
-      this.saveToLocalStorage(LS_KEYS.CATEGORIES, idbCategories);
-      return idbCategories;
+    const local =
+      await this.getAllFromStore<Category>(
+        STORES.CATEGORIES
+      );
+
+    if (local.length > 0) {
+      return local;
     }
 
-    return this.getFromLocalStorage<Category[]>(LS_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+    return this.getFromLocalStorage<Category[]>(
+      LS_KEYS.CATEGORIES,
+      INITIAL_CATEGORIES
+    );
   }
 
-  public async saveCategory(category: Category): Promise<void> {
-    await firebaseService.saveCategory(category).catch((e) => console.warn('Cloud save category:', e));
-    await this.putInStore(STORES.CATEGORIES, category);
-    const current = this.getFromLocalStorage<Category[]>(LS_KEYS.CATEGORIES, []);
-    const idx = current.findIndex((c) => c.id === category.id);
-    if (idx >= 0) {
-      current[idx] = category;
+  public async saveCategory(
+    category: Category
+  ): Promise<void> {
+    await firebaseService.saveCategory(
+      category
+    );
+
+    await this.putInStore(
+      STORES.CATEGORIES,
+      category
+    );
+
+    const current =
+      this.getFromLocalStorage<Category[]>(
+        LS_KEYS.CATEGORIES,
+        []
+      );
+
+    const index = current.findIndex(
+      (item) => item.id === category.id
+    );
+
+    if (index >= 0) {
+      current[index] = category;
     } else {
       current.push(category);
     }
-    this.saveToLocalStorage(LS_KEYS.CATEGORIES, current);
+
+    this.saveToLocalStorage(
+      LS_KEYS.CATEGORIES,
+      current
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  public async deleteCategory(categoryId: string): Promise<void> {
-    await firebaseService.deleteCategory(categoryId).catch((e) => console.warn('Cloud delete category:', e));
-    await this.deleteFromStore(STORES.CATEGORIES, categoryId);
-    const current = this.getFromLocalStorage<Category[]>(LS_KEYS.CATEGORIES, []);
-    const filtered = current.filter((c) => c.id !== categoryId);
-    this.saveToLocalStorage(LS_KEYS.CATEGORIES, filtered);
+  public async deleteCategory(
+    categoryId: string
+  ): Promise<void> {
+    await firebaseService.deleteCategory(
+      categoryId
+    );
+
+    await this.deleteFromStore(
+      STORES.CATEGORIES,
+      categoryId
+    );
+
+    const current =
+      this.getFromLocalStorage<Category[]>(
+        LS_KEYS.CATEGORIES,
+        []
+      );
+
+    this.saveToLocalStorage(
+      LS_KEYS.CATEGORIES,
+      current.filter(
+        (category) => category.id !== categoryId
+      )
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- ORDERS ---
+  // =========================================================
+  // ORDERS - IMPORTANT
+  // =========================================================
+
   public async getOrders(): Promise<Order[]> {
     try {
-      const cloudOrders = await firebaseService.getOrders();
-      if (cloudOrders) {
-        this.saveToLocalStorage(LS_KEYS.ORDERS, cloudOrders);
-        for (const o of cloudOrders) {
-          this.putInStore(STORES.ORDERS, o).catch(() => {});
+      /*
+       * مهم جدًا:
+       * Firestore هو المصدر الأساسي للطلبات.
+       *
+       * لا نستخدم:
+       * if (cloudOrders.length > 0)
+       *
+       * لأن [] معناها أن Firestore فاضي بالفعل.
+       */
+
+      const cloudOrders =
+        await firebaseService.getOrders();
+
+      if (Array.isArray(cloudOrders)) {
+        const sortedOrders =
+          [...cloudOrders].sort(
+            (a, b) =>
+              this.getOrderTimestamp(b) -
+              this.getOrderTimestamp(a)
+          );
+
+        /*
+         * تحديث الـ cache من Firestore.
+         */
+        this.saveToLocalStorage(
+          LS_KEYS.ORDERS,
+          sortedOrders
+        );
+
+        /*
+         * تحديث IndexedDB.
+         */
+        for (const order of sortedOrders) {
+          await this.putInStore(
+            STORES.ORDERS,
+            order
+          );
         }
-        return cloudOrders;
+
+        return sortedOrders;
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      console.warn(
+        'Firestore getOrders failed:',
+        error
+      );
     }
 
-    const idbOrders = await this.getAllFromStore<Order>(STORES.ORDERS);
-    if (idbOrders && idbOrders.length > 0) {
-      this.saveToLocalStorage(LS_KEYS.ORDERS, idbOrders);
-      return idbOrders;
+    /*
+     * Firestore غير متاح فقط:
+     * نستخدم IndexedDB كـ fallback.
+     */
+    const idbOrders =
+      await this.getAllFromStore<Order>(
+        STORES.ORDERS
+      );
+
+    if (idbOrders.length > 0) {
+      return idbOrders.sort(
+        (a, b) =>
+          this.getOrderTimestamp(b) -
+          this.getOrderTimestamp(a)
+      );
     }
-    return this.getFromLocalStorage<Order[]>(LS_KEYS.ORDERS, []);
+
+    /*
+     * آخر fallback هو localStorage.
+     */
+    const cachedOrders =
+      this.getFromLocalStorage<Order[]>(
+        LS_KEYS.ORDERS,
+        []
+      );
+
+    return cachedOrders.sort(
+      (a, b) =>
+        this.getOrderTimestamp(b) -
+        this.getOrderTimestamp(a)
+    );
   }
 
-  public async saveOrder(order: Order): Promise<void> {
-    await firebaseService.saveOrder(order).catch((e) => console.warn('Cloud save order:', e));
-    await this.putInStore(STORES.ORDERS, order);
-    const current = this.getFromLocalStorage<Order[]>(LS_KEYS.ORDERS, []);
-    const idx = current.findIndex((o) => o.id === order.id);
-    if (idx >= 0) {
-      current[idx] = order;
+  public async saveOrder(
+    order: Order
+  ): Promise<void> {
+    /*
+     * تأكد من وجود createdAt.
+     */
+    const safeOrder: Order = {
+      ...order,
+      createdAt:
+        typeof order.createdAt === 'string'
+          ? order.createdAt
+          : new Date().toISOString(),
+    };
+
+    /*
+     * أول وأهم خطوة:
+     * الحفظ في Firestore.
+     */
+    await firebaseService.saveOrder(
+      safeOrder
+    );
+
+    /*
+     * تحديث IndexedDB.
+     */
+    await this.putInStore(
+      STORES.ORDERS,
+      safeOrder
+    );
+
+    /*
+     * تحديث localStorage.
+     */
+    const current =
+      this.getFromLocalStorage<Order[]>(
+        LS_KEYS.ORDERS,
+        []
+      );
+
+    const index = current.findIndex(
+      (item) => item.id === safeOrder.id
+    );
+
+    if (index >= 0) {
+      current[index] = safeOrder;
     } else {
-      current.unshift(order);
+      current.unshift(safeOrder);
     }
-    this.saveToLocalStorage(LS_KEYS.ORDERS, current);
+
+    current.sort(
+      (a, b) =>
+        this.getOrderTimestamp(b) -
+        this.getOrderTimestamp(a)
+    );
+
+    this.saveToLocalStorage(
+      LS_KEYS.ORDERS,
+      current
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  public async deleteOrder(orderId: string): Promise<void> {
-    await firebaseService.deleteOrder(orderId).catch((e) => console.warn('Cloud delete order:', e));
-    await this.deleteFromStore(STORES.ORDERS, orderId);
-    const current = this.getFromLocalStorage<Order[]>(LS_KEYS.ORDERS, []);
-    const filtered = current.filter((o) => o.id !== orderId);
-    this.saveToLocalStorage(LS_KEYS.ORDERS, filtered);
+  public async deleteOrder(
+    orderId: string
+  ): Promise<void> {
+    /*
+     * الحذف من Firestore أولًا.
+     */
+    await firebaseService.deleteOrder(
+      orderId
+    );
+
+    /*
+     * حذف من IndexedDB.
+     */
+    await this.deleteFromStore(
+      STORES.ORDERS,
+      orderId
+    );
+
+    /*
+     * حذف من localStorage.
+     */
+    const current =
+      this.getFromLocalStorage<Order[]>(
+        LS_KEYS.ORDERS,
+        []
+      );
+
+    this.saveToLocalStorage(
+      LS_KEYS.ORDERS,
+      current.filter(
+        (order) => order.id !== orderId
+      )
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- REVIEWS ---
+  private getOrderTimestamp(
+    order: Order
+  ): number {
+    if (!order?.createdAt) {
+      return 0;
+    }
+
+    if (
+      typeof order.createdAt === 'string'
+    ) {
+      const timestamp =
+        new Date(
+          order.createdAt
+        ).getTime();
+
+      return Number.isFinite(timestamp)
+        ? timestamp
+        : 0;
+    }
+
+    const createdAt =
+      order.createdAt as any;
+
+    if (
+      typeof createdAt?.seconds === 'number'
+    ) {
+      return (
+        createdAt.seconds * 1000 +
+        Math.floor(
+          (createdAt.nanoseconds || 0) /
+            1000000
+        )
+      );
+    }
+
+    if (
+      typeof createdAt?.toDate ===
+      'function'
+    ) {
+      const date =
+        createdAt.toDate();
+
+      return date instanceof Date
+        ? date.getTime()
+        : 0;
+    }
+
+    return 0;
+  }
+
+  // =========================================================
+  // REVIEWS
+  // =========================================================
+
   public async getReviews(): Promise<Review[]> {
     try {
-      const cloudReviews = await firebaseService.getReviews();
-      if (cloudReviews && cloudReviews.length > 0) {
-        this.saveToLocalStorage(LS_KEYS.REVIEWS, cloudReviews);
-        for (const r of cloudReviews) {
-          this.putInStore(STORES.REVIEWS, r).catch(() => {});
+      const cloudReviews =
+        await firebaseService.getReviews();
+
+      if (Array.isArray(cloudReviews)) {
+        this.saveToLocalStorage(
+          LS_KEYS.REVIEWS,
+          cloudReviews
+        );
+
+        for (const review of cloudReviews) {
+          await this.putInStore(
+            STORES.REVIEWS,
+            review
+          );
         }
+
         return cloudReviews;
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      console.warn(
+        'Firestore getReviews failed:',
+        error
+      );
     }
 
-    const idbReviews = await this.getAllFromStore<Review>(STORES.REVIEWS);
-    if (idbReviews && idbReviews.length > 0) {
-      this.saveToLocalStorage(LS_KEYS.REVIEWS, idbReviews);
-      return idbReviews;
+    const local =
+      await this.getAllFromStore<Review>(
+        STORES.REVIEWS
+      );
+
+    if (local.length > 0) {
+      return local;
     }
-    return this.getFromLocalStorage<Review[]>(LS_KEYS.REVIEWS, INITIAL_REVIEWS);
+
+    return this.getFromLocalStorage<Review[]>(
+      LS_KEYS.REVIEWS,
+      INITIAL_REVIEWS
+    );
   }
 
-  public async saveReview(review: Review): Promise<void> {
-    await firebaseService.saveReview(review).catch((e) => console.warn('Cloud save review:', e));
-    await this.putInStore(STORES.REVIEWS, review);
-    const current = this.getFromLocalStorage<Review[]>(LS_KEYS.REVIEWS, []);
-    const idx = current.findIndex((r) => r.id === review.id);
-    if (idx >= 0) {
-      current[idx] = review;
+  public async saveReview(
+    review: Review
+  ): Promise<void> {
+    await firebaseService.saveReview(
+      review
+    );
+
+    await this.putInStore(
+      STORES.REVIEWS,
+      review
+    );
+
+    const current =
+      this.getFromLocalStorage<Review[]>(
+        LS_KEYS.REVIEWS,
+        []
+      );
+
+    const index = current.findIndex(
+      (item) => item.id === review.id
+    );
+
+    if (index >= 0) {
+      current[index] = review;
     } else {
       current.unshift(review);
     }
-    this.saveToLocalStorage(LS_KEYS.REVIEWS, current);
+
+    this.saveToLocalStorage(
+      LS_KEYS.REVIEWS,
+      current
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  public async deleteReview(reviewId: string): Promise<void> {
-    await firebaseService.deleteReview(reviewId).catch((e) => console.warn('Cloud delete review:', e));
-    await this.deleteFromStore(STORES.REVIEWS, reviewId);
-    const current = this.getFromLocalStorage<Review[]>(LS_KEYS.REVIEWS, []);
-    const filtered = current.filter((r) => r.id !== reviewId);
-    this.saveToLocalStorage(LS_KEYS.REVIEWS, filtered);
+  public async deleteReview(
+    reviewId: string
+  ): Promise<void> {
+    await firebaseService.deleteReview(
+      reviewId
+    );
+
+    await this.deleteFromStore(
+      STORES.REVIEWS,
+      reviewId
+    );
+
+    const current =
+      this.getFromLocalStorage<Review[]>(
+        LS_KEYS.REVIEWS,
+        []
+      );
+
+    this.saveToLocalStorage(
+      LS_KEYS.REVIEWS,
+      current.filter(
+        (review) => review.id !== reviewId
+      )
+    );
+
     await this.updateMetaTimestamp();
   }
 
   public async clearAllReviews(): Promise<void> {
-    await firebaseService.clearAllReviews().catch((e) => console.warn('Cloud clear reviews:', e));
-    await this.clearStore(STORES.REVIEWS);
-    this.saveToLocalStorage(LS_KEYS.REVIEWS, []);
+    await firebaseService.clearAllReviews();
+
+    await this.clearStore(
+      STORES.REVIEWS
+    );
+
+    this.saveToLocalStorage(
+      LS_KEYS.REVIEWS,
+      []
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- COUPONS ---
+  // =========================================================
+  // COUPONS
+  // =========================================================
+
   public async getCoupons(): Promise<Coupon[]> {
     try {
-      const cloudCoupons = await firebaseService.getCoupons();
-      if (cloudCoupons && cloudCoupons.length > 0) {
-        this.saveToLocalStorage(LS_KEYS.COUPONS, cloudCoupons);
-        for (const c of cloudCoupons) {
-          this.putInStore(STORES.COUPONS, c).catch(() => {});
+      const cloudCoupons =
+        await firebaseService.getCoupons();
+
+      if (Array.isArray(cloudCoupons)) {
+        this.saveToLocalStorage(
+          LS_KEYS.COUPONS,
+          cloudCoupons
+        );
+
+        for (const coupon of cloudCoupons) {
+          await this.putInStore(
+            STORES.COUPONS,
+            coupon
+          );
         }
+
         return cloudCoupons;
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      console.warn(
+        'Firestore getCoupons failed:',
+        error
+      );
     }
 
-    const idbCoupons = await this.getAllFromStore<Coupon>(STORES.COUPONS);
-    if (idbCoupons && idbCoupons.length > 0) {
-      this.saveToLocalStorage(LS_KEYS.COUPONS, idbCoupons);
-      return idbCoupons;
+    const local =
+      await this.getAllFromStore<Coupon>(
+        STORES.COUPONS
+      );
+
+    if (local.length > 0) {
+      return local;
     }
-    return this.getFromLocalStorage<Coupon[]>(LS_KEYS.COUPONS, INITIAL_COUPONS);
+
+    return this.getFromLocalStorage<Coupon[]>(
+      LS_KEYS.COUPONS,
+      INITIAL_COUPONS
+    );
   }
 
-  public async saveCoupon(coupon: Coupon): Promise<void> {
-    await firebaseService.saveCoupon(coupon).catch((e) => console.warn('Cloud save coupon:', e));
-    await this.putInStore(STORES.COUPONS, coupon);
-    const current = this.getFromLocalStorage<Coupon[]>(LS_KEYS.COUPONS, []);
-    const idx = current.findIndex((c) => c.id === coupon.id);
-    if (idx >= 0) {
-      current[idx] = coupon;
+  public async saveCoupon(
+    coupon: Coupon
+  ): Promise<void> {
+    await firebaseService.saveCoupon(
+      coupon
+    );
+
+    await this.putInStore(
+      STORES.COUPONS,
+      coupon
+    );
+
+    const current =
+      this.getFromLocalStorage<Coupon[]>(
+        LS_KEYS.COUPONS,
+        []
+      );
+
+    const index = current.findIndex(
+      (item) => item.id === coupon.id
+    );
+
+    if (index >= 0) {
+      current[index] = coupon;
     } else {
       current.push(coupon);
     }
-    this.saveToLocalStorage(LS_KEYS.COUPONS, current);
+
+    this.saveToLocalStorage(
+      LS_KEYS.COUPONS,
+      current
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  public async deleteCoupon(couponId: string): Promise<void> {
-    await firebaseService.deleteCoupon(couponId).catch((e) => console.warn('Cloud delete coupon:', e));
-    await this.deleteFromStore(STORES.COUPONS, couponId);
-    const current = this.getFromLocalStorage<Coupon[]>(LS_KEYS.COUPONS, []);
-    const filtered = current.filter((c) => c.id !== couponId);
-    this.saveToLocalStorage(LS_KEYS.COUPONS, filtered);
+  public async deleteCoupon(
+    couponId: string
+  ): Promise<void> {
+    await firebaseService.deleteCoupon(
+      couponId
+    );
+
+    await this.deleteFromStore(
+      STORES.COUPONS,
+      couponId
+    );
+
+    const current =
+      this.getFromLocalStorage<Coupon[]>(
+        LS_KEYS.COUPONS,
+        []
+      );
+
+    this.saveToLocalStorage(
+      LS_KEYS.COUPONS,
+      current.filter(
+        (coupon) => coupon.id !== couponId
+      )
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- SETTINGS ---
+  // =========================================================
+  // SETTINGS
+  // =========================================================
+
   public async getSettings(): Promise<StoreSettings> {
     try {
-      const cloudSettings = await firebaseService.getSettings();
+      const cloudSettings =
+        await firebaseService.getSettings();
+
       if (cloudSettings) {
-        this.saveToLocalStorage(LS_KEYS.SETTINGS, cloudSettings);
-        this.putInStore(STORES.SETTINGS, { key: 'main_settings', value: cloudSettings }).catch(() => {});
+        this.saveToLocalStorage(
+          LS_KEYS.SETTINGS,
+          cloudSettings
+        );
+
+        await this.putInStore(
+          STORES.SETTINGS,
+          {
+            key: 'main_settings',
+            value: cloudSettings,
+          }
+        );
+
         return cloudSettings;
       }
-    } catch {
-      // fallback
+    } catch (error) {
+      console.warn(
+        'Firestore getSettings failed:',
+        error
+      );
     }
 
     try {
       if (this.isIndexedDBAvailable) {
         const db = await this.initDB();
-        const settingsObj = await new Promise<{ key: string; value: StoreSettings } | undefined>((resolve) => {
-          const tx = db.transaction(STORES.SETTINGS, 'readonly');
-          const store = tx.objectStore(STORES.SETTINGS);
-          const req = store.get('main_settings');
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => resolve(undefined);
-        });
 
-        if (settingsObj?.value) {
-          this.saveToLocalStorage(LS_KEYS.SETTINGS, settingsObj.value);
-          return settingsObj.value;
+        const settings =
+          await new Promise<
+            | {
+                key: string;
+                value: StoreSettings;
+              }
+            | undefined
+          >((resolve) => {
+            try {
+              const tx =
+                db.transaction(
+                  STORES.SETTINGS,
+                  'readonly'
+                );
+
+              const store =
+                tx.objectStore(
+                  STORES.SETTINGS
+                );
+
+              const request =
+                store.get(
+                  'main_settings'
+                );
+
+              request.onsuccess = () => {
+                resolve(request.result);
+              };
+
+              request.onerror = () => {
+                resolve(undefined);
+              };
+            } catch {
+              resolve(undefined);
+            }
+          });
+
+        if (settings?.value) {
+          this.saveToLocalStorage(
+            LS_KEYS.SETTINGS,
+            settings.value
+          );
+
+          return settings.value;
         }
       }
     } catch {
-      // ignore
+      // fallback
     }
 
-    return this.getFromLocalStorage<StoreSettings>(LS_KEYS.SETTINGS, INITIAL_SETTINGS);
+    return this.getFromLocalStorage<StoreSettings>(
+      LS_KEYS.SETTINGS,
+      INITIAL_SETTINGS
+    );
   }
 
-  public async saveSettings(settings: StoreSettings): Promise<void> {
-    await firebaseService.saveSettings(settings).catch((e) => console.warn('Cloud save settings:', e));
-    this.saveToLocalStorage(LS_KEYS.SETTINGS, settings);
-    await this.putInStore(STORES.SETTINGS, { key: 'main_settings', value: settings });
+  public async saveSettings(
+    settings: StoreSettings
+  ): Promise<void> {
+    await firebaseService.saveSettings(
+      settings
+    );
+
+    this.saveToLocalStorage(
+      LS_KEYS.SETTINGS,
+      settings
+    );
+
+    await this.putInStore(
+      STORES.SETTINGS,
+      {
+        key: 'main_settings',
+        value: settings,
+      }
+    );
+
     await this.updateMetaTimestamp();
   }
 
-  // --- WISHLIST ---
+  // =========================================================
+  // WISHLIST
+  // =========================================================
+
   public async getWishlist(): Promise<string[]> {
-    return this.getFromLocalStorage<string[]>(LS_KEYS.WISHLIST, []);
+    return this.getFromLocalStorage<string[]>(
+      LS_KEYS.WISHLIST,
+      []
+    );
   }
 
-  public async saveWishlist(productIds: string[]): Promise<void> {
-    this.saveToLocalStorage(LS_KEYS.WISHLIST, productIds);
+  public async saveWishlist(
+    productIds: string[]
+  ): Promise<void> {
+    this.saveToLocalStorage(
+      LS_KEYS.WISHLIST,
+      productIds
+    );
   }
 
-  // --- RESTORE & RAW DUMP ---
+  // =========================================================
+  // FULL DATABASE DUMP
+  // =========================================================
+
   public async getAllDataDump() {
-    const meta = (await this.getDatabaseMeta()) || INITIAL_DATABASE_META;
-    const products = await this.getProducts();
-    const categories = await this.getCategories();
-    const orders = await this.getOrders();
-    const reviews = await this.getReviews();
-    const coupons = await this.getCoupons();
-    const settings = await this.getSettings();
-    const wishlist = await this.getWishlist();
+    const meta =
+      (await this.getDatabaseMeta()) ||
+      INITIAL_DATABASE_META;
+
+    const products =
+      await this.getProducts();
+
+    const categories =
+      await this.getCategories();
+
+    const orders =
+      await this.getOrders();
+
+    const reviews =
+      await this.getReviews();
+
+    const coupons =
+      await this.getCoupons();
+
+    const settings =
+      await this.getSettings();
+
+    const wishlist =
+      await this.getWishlist();
 
     return {
       meta,
@@ -588,68 +1385,195 @@ class StorageService {
     };
   }
 
-  public async restoreFullDatabase(dump: any): Promise<void> {
-    if (!dump || typeof dump !== 'object') {
-      throw new Error('Invalid backup file format.');
+  // =========================================================
+  // RESTORE DATABASE
+  // =========================================================
+
+  public async restoreFullDatabase(
+    dump: any
+  ): Promise<void> {
+    if (
+      !dump ||
+      typeof dump !== 'object'
+    ) {
+      throw new Error(
+        'Invalid backup file format.'
+      );
     }
 
-    // Restore into Cloud Firestore
-    await firebaseService.restoreFullDatabase(dump).catch((e) => console.warn('Cloud restore:', e));
+    /*
+     * أولًا Firestore.
+     */
+    await firebaseService.restoreFullDatabase(
+      dump
+    );
 
-    // Clear all local stores
-    await this.clearStore(STORES.PRODUCTS);
-    await this.clearStore(STORES.CATEGORIES);
-    await this.clearStore(STORES.ORDERS);
-    await this.clearStore(STORES.REVIEWS);
-    await this.clearStore(STORES.COUPONS);
-    await this.clearStore(STORES.SETTINGS);
-    await this.clearStore(STORES.META);
+    /*
+     * بعد نجاح Firestore فقط نمسح الـ local cache.
+     */
+    await this.clearStore(
+      STORES.PRODUCTS
+    );
 
+    await this.clearStore(
+      STORES.CATEGORIES
+    );
+
+    await this.clearStore(
+      STORES.ORDERS
+    );
+
+    await this.clearStore(
+      STORES.REVIEWS
+    );
+
+    await this.clearStore(
+      STORES.COUPONS
+    );
+
+    await this.clearStore(
+      STORES.SETTINGS
+    );
+
+    await this.clearStore(
+      STORES.META
+    );
+
+    // PRODUCTS
     if (Array.isArray(dump.products)) {
-      for (const p of dump.products) await this.putInStore(STORES.PRODUCTS, p);
-      this.saveToLocalStorage(LS_KEYS.PRODUCTS, dump.products);
+      for (const product of dump.products) {
+        await this.putInStore(
+          STORES.PRODUCTS,
+          product
+        );
+      }
+
+      this.saveToLocalStorage(
+        LS_KEYS.PRODUCTS,
+        dump.products
+      );
     }
+
+    // CATEGORIES
     if (Array.isArray(dump.categories)) {
-      for (const c of dump.categories) await this.putInStore(STORES.CATEGORIES, c);
-      this.saveToLocalStorage(LS_KEYS.CATEGORIES, dump.categories);
+      for (const category of dump.categories) {
+        await this.putInStore(
+          STORES.CATEGORIES,
+          category
+        );
+      }
+
+      this.saveToLocalStorage(
+        LS_KEYS.CATEGORIES,
+        dump.categories
+      );
     }
+
+    // ORDERS
     if (Array.isArray(dump.orders)) {
-      for (const o of dump.orders) await this.putInStore(STORES.ORDERS, o);
-      this.saveToLocalStorage(LS_KEYS.ORDERS, dump.orders);
+      for (const order of dump.orders) {
+        await this.putInStore(
+          STORES.ORDERS,
+          order
+        );
+      }
+
+      this.saveToLocalStorage(
+        LS_KEYS.ORDERS,
+        dump.orders
+      );
     }
+
+    // REVIEWS
     if (Array.isArray(dump.reviews)) {
-      for (const r of dump.reviews) await this.putInStore(STORES.REVIEWS, r);
-      this.saveToLocalStorage(LS_KEYS.REVIEWS, dump.reviews);
+      for (const review of dump.reviews) {
+        await this.putInStore(
+          STORES.REVIEWS,
+          review
+        );
+      }
+
+      this.saveToLocalStorage(
+        LS_KEYS.REVIEWS,
+        dump.reviews
+      );
     }
+
+    // COUPONS
     if (Array.isArray(dump.coupons)) {
-      for (const cp of dump.coupons) await this.putInStore(STORES.COUPONS, cp);
-      this.saveToLocalStorage(LS_KEYS.COUPONS, dump.coupons);
+      for (const coupon of dump.coupons) {
+        await this.putInStore(
+          STORES.COUPONS,
+          coupon
+        );
+      }
+
+      this.saveToLocalStorage(
+        LS_KEYS.COUPONS,
+        dump.coupons
+      );
     }
+
+    // SETTINGS
     if (dump.settings) {
-      await this.putInStore(STORES.SETTINGS, { key: 'main_settings', value: dump.settings });
-      this.saveToLocalStorage(LS_KEYS.SETTINGS, dump.settings);
+      await this.putInStore(
+        STORES.SETTINGS,
+        {
+          key: 'main_settings',
+          value: dump.settings,
+        }
+      );
+
+      this.saveToLocalStorage(
+        LS_KEYS.SETTINGS,
+        dump.settings
+      );
     }
+
+    // WISHLIST
     if (Array.isArray(dump.wishlist)) {
-      this.saveToLocalStorage(LS_KEYS.WISHLIST, dump.wishlist);
+      this.saveToLocalStorage(
+        LS_KEYS.WISHLIST,
+        dump.wishlist
+      );
     }
 
     const newMeta: DatabaseMeta = {
       version: DATA_VERSION,
       initialized: true,
-      updatedAt: new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString(),
     };
-    await this.saveDatabaseMeta(newMeta);
+
+    await this.saveDatabaseMeta(
+      newMeta
+    );
   }
 
+  // =========================================================
+  // META TIMESTAMP
+  // =========================================================
+
   private async updateMetaTimestamp(): Promise<void> {
-    const meta = (await this.getDatabaseMeta()) || {
-      version: DATA_VERSION,
+    const currentMeta =
+      await this.getDatabaseMeta();
+
+    const meta: DatabaseMeta = {
+      version:
+        currentMeta?.version ||
+        DATA_VERSION,
+
       initialized: true,
-      updatedAt: new Date().toISOString(),
+
+      updatedAt:
+        new Date().toISOString(),
     };
-    meta.updatedAt = new Date().toISOString();
-    await this.saveDatabaseMeta(meta);
+
+    await this.saveDatabaseMeta(
+      meta
+    );
   }
 }
 
-export const storageService = new StorageService();
+export const storageService =
+  new StorageService();

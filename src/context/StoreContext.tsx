@@ -67,11 +67,13 @@ interface StoreContextType {
   ) => void;
 
   activeCoupon: Coupon | null;
+
   cartSubtotal: number;
   cartDiscount: number;
   cartShipping: number;
   cartTotal: number;
   cartCount: number;
+
   freeShippingProgress: number;
   amountLeftForFreeShipping: number;
 
@@ -96,7 +98,10 @@ interface StoreContextType {
 
   applyCoupon: (
     code: string
-  ) => { success: boolean; message: string };
+  ) => {
+    success: boolean;
+    message: string;
+  };
 
   removeCoupon: () => void;
 
@@ -130,7 +135,9 @@ interface StoreContextType {
   saveProduct: (product: Product) => Promise<void>;
 
   addProduct: (
-    product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> | Product
+    product:
+      | Omit<Product, 'id' | 'createdAt' | 'updatedAt'>
+      | Product
   ) => Promise<void>;
 
   updateProduct: (
@@ -199,9 +206,9 @@ interface StoreContextType {
   refreshAllData: () => Promise<void>;
 }
 
-const StoreContext = createContext<StoreContextType | undefined>(
-  undefined
-);
+const StoreContext = createContext<
+  StoreContextType | undefined
+>(undefined);
 
 export const StoreProvider: React.FC<{
   children: React.ReactNode;
@@ -213,6 +220,7 @@ export const StoreProvider: React.FC<{
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+
   const [settings, setSettings] =
     useState<StoreSettings>(INITIAL_SETTINGS);
 
@@ -283,6 +291,10 @@ export const StoreProvider: React.FC<{
     [language]
   );
 
+  // =========================================================
+  // TOAST
+  // =========================================================
+
   const showToast = useCallback(
     (
       title: string,
@@ -311,18 +323,9 @@ export const StoreProvider: React.FC<{
     []
   );
 
-  /*
-   * =========================================================
-   * MERGE PRODUCTS
-   * =========================================================
-   *
-   * مهم:
-   * لو عندنا منتجات محفوظة قديمة، لا نحذف المنتجات الموجودة
-   * في INITIAL_PRODUCTS.
-   *
-   * لو نفس ID موجود في الاثنين، البيانات المحفوظة هي التي
-   * تأخذ الأولوية.
-   */
+  // =========================================================
+  // MERGE PRODUCTS
+  // =========================================================
 
   const mergeProducts = useCallback(
     (storedProducts: Product[] = []) => {
@@ -333,10 +336,51 @@ export const StoreProvider: React.FC<{
       });
 
       storedProducts.forEach((product) => {
-        productMap.set(product.id, product);
+        if (product?.id) {
+          productMap.set(product.id, product);
+        }
       });
 
       return Array.from(productMap.values());
+    },
+    []
+  );
+
+  // =========================================================
+  // MERGE ORDERS
+  // =========================================================
+
+  const mergeOrders = useCallback(
+    (
+      localOrders: Order[] = [],
+      cloudOrders: Order[] = []
+    ): Order[] => {
+      const orderMap = new Map<string, Order>();
+
+      /*
+       * Local orders first
+       */
+      localOrders.forEach((order) => {
+        if (order?.id) {
+          orderMap.set(order.id, order);
+        }
+      });
+
+      /*
+       * Firebase orders override local copies
+       * when the same order ID exists.
+       */
+      cloudOrders.forEach((order) => {
+        if (order?.id) {
+          orderMap.set(order.id, order);
+        }
+      });
+
+      return Array.from(orderMap.values()).sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+      );
     },
     []
   );
@@ -352,7 +396,7 @@ export const StoreProvider: React.FC<{
       const [
         prods,
         cats,
-        ords,
+        localOrders,
         revs,
         cps,
         sttngs,
@@ -367,47 +411,84 @@ export const StoreProvider: React.FC<{
         storageService.getWishlist(),
       ]);
 
-      // FIX:
-      // دمج المنتجات المحفوظة مع INITIAL_PRODUCTS
+      // -----------------------------------------------------
+      // PRODUCTS
+      // -----------------------------------------------------
+
       setProducts(
-        mergeProducts(prods || [])
+        mergeProducts(
+          Array.isArray(prods)
+            ? prods
+            : []
+        )
       );
 
+      // -----------------------------------------------------
+      // CATEGORIES
+      // -----------------------------------------------------
+
       setCategories(
-        cats && cats.length > 0
+        Array.isArray(cats) &&
+          cats.length > 0
           ? cats
           : INITIAL_CATEGORIES
       );
 
-      setOrders(ords || []);
+      // -----------------------------------------------------
+      // REVIEWS
+      // -----------------------------------------------------
 
       setReviews(
-        revs && revs.length > 0
+        Array.isArray(revs) &&
+          revs.length > 0
           ? revs
           : INITIAL_REVIEWS
       );
 
+      // -----------------------------------------------------
+      // COUPONS
+      // -----------------------------------------------------
+
       setCoupons(
-        cps && cps.length > 0
+        Array.isArray(cps) &&
+          cps.length > 0
           ? cps
           : INITIAL_COUPONS
       );
+
+      // -----------------------------------------------------
+      // SETTINGS
+      // -----------------------------------------------------
 
       setSettings(
         sttngs || INITIAL_SETTINGS
       );
 
-      setWishlist(wsh || []);
+      // -----------------------------------------------------
+      // WISHLIST
+      // -----------------------------------------------------
+
+      setWishlist(
+        Array.isArray(wsh)
+          ? wsh
+          : []
+      );
+
+      // -----------------------------------------------------
+      // ORDERS
+      // -----------------------------------------------------
+
+      let firebaseOrders: Order[] = [];
 
       try {
-        const firebaseOrders =
+        const cloudOrders =
           await firebaseService.getOrders();
 
         if (
-          firebaseOrders &&
-          firebaseOrders.length > 0
+          Array.isArray(cloudOrders)
         ) {
-          setOrders(firebaseOrders);
+          firebaseOrders =
+            cloudOrders;
         }
       } catch (error) {
         console.warn(
@@ -415,6 +496,29 @@ export const StoreProvider: React.FC<{
           error
         );
       }
+
+      const safeLocalOrders =
+        Array.isArray(localOrders)
+          ? localOrders
+          : [];
+
+      /*
+       * مهم جداً:
+       *
+       * لا نعمل setOrders(firebaseOrders)
+       * مباشرة.
+       *
+       * لأن Firebase ممكن يرجع [] مؤقتاً،
+       * وده كان بيخلي الطلبات تختفي بعد Refresh.
+       */
+
+      const mergedOrders =
+        mergeOrders(
+          safeLocalOrders,
+          firebaseOrders
+        );
+
+      setOrders(mergedOrders);
     } catch (error) {
       console.error(
         'Failed to load store data:',
@@ -425,103 +529,219 @@ export const StoreProvider: React.FC<{
         mergeProducts([])
       );
 
-      setCategories(INITIAL_CATEGORIES);
-      setOrders([]);
-      setReviews(INITIAL_REVIEWS);
-      setCoupons(INITIAL_COUPONS);
-      setSettings(INITIAL_SETTINGS);
+      setCategories(
+        INITIAL_CATEGORIES
+      );
+
+      /*
+       * لا نمسح orders الموجودة
+       * لو حصل خطأ في التحميل.
+       */
+      setOrders((previous) =>
+        Array.isArray(previous)
+          ? previous
+          : []
+      );
+
+      setReviews(
+        INITIAL_REVIEWS
+      );
+
+      setCoupons(
+        INITIAL_COUPONS
+      );
+
+      setSettings(
+        INITIAL_SETTINGS
+      );
+
       setWishlist([]);
     } finally {
       setIsLoading(false);
     }
-  }, [mergeProducts]);
+  }, [
+    mergeProducts,
+    mergeOrders,
+  ]);
 
   // =========================================================
-  // INITIAL LOAD + FIREBASE
+  // INITIAL LOAD + FIREBASE REALTIME
   // =========================================================
 
   useEffect(() => {
-    let unsubscribeProducts: (() => void) | undefined;
-    let unsubscribeCategories: (() => void) | undefined;
-    let unsubscribeOrders: (() => void) | undefined;
-    let unsubscribeReviews: (() => void) | undefined;
-    let unsubscribeCoupons: (() => void) | undefined;
-    let unsubscribeSettings: (() => void) | undefined;
+    let unsubscribeProducts:
+      | (() => void)
+      | undefined;
 
-    const initializeStore = async () => {
-      await refreshAllData();
+    let unsubscribeCategories:
+      | (() => void)
+      | undefined;
 
-      try {
-        unsubscribeProducts =
-          firebaseService.subscribeToProducts(
-            (cloudProducts) => {
-              /*
-               * FIX:
-               * Firebase لو عنده منتج واحد فقط لا يمسح
-               * INITIAL_PRODUCTS.
-               */
-              if (
-                cloudProducts &&
-                cloudProducts.length > 0
-              ) {
-                setProducts(
-                  mergeProducts(cloudProducts)
+    let unsubscribeOrders:
+      | (() => void)
+      | undefined;
+
+    let unsubscribeReviews:
+      | (() => void)
+      | undefined;
+
+    let unsubscribeCoupons:
+      | (() => void)
+      | undefined;
+
+    let unsubscribeSettings:
+      | (() => void)
+      | undefined;
+
+    const initializeStore =
+      async () => {
+        await refreshAllData();
+
+        try {
+          // -------------------------------------------------
+          // PRODUCTS
+          // -------------------------------------------------
+
+          unsubscribeProducts =
+            firebaseService.subscribeToProducts(
+              (cloudProducts) => {
+                if (
+                  Array.isArray(
+                    cloudProducts
+                  ) &&
+                  cloudProducts.length > 0
+                ) {
+                  setProducts(
+                    mergeProducts(
+                      cloudProducts
+                    )
+                  );
+                }
+              }
+            );
+
+          // -------------------------------------------------
+          // CATEGORIES
+          // -------------------------------------------------
+
+          unsubscribeCategories =
+            firebaseService.subscribeToCategories(
+              (cloudCategories) => {
+                if (
+                  Array.isArray(
+                    cloudCategories
+                  ) &&
+                  cloudCategories.length > 0
+                ) {
+                  setCategories(
+                    cloudCategories
+                  );
+                }
+              }
+            );
+
+          // -------------------------------------------------
+          // ORDERS
+          // -------------------------------------------------
+
+          unsubscribeOrders =
+            firebaseService.subscribeToOrders(
+              (cloudOrders) => {
+                /*
+                 * مهم جداً:
+                 *
+                 * لا نستبدل orders بمصفوفة فاضية.
+                 *
+                 * لو Firebase رجع [] بسبب تأخير
+                 * أو reconnect، نحافظ على الطلبات
+                 * الموجودة في الـ state.
+                 */
+
+                if (
+                  !Array.isArray(
+                    cloudOrders
+                  )
+                ) {
+                  return;
+                }
+
+                if (
+                  cloudOrders.length === 0
+                ) {
+                  return;
+                }
+
+                setOrders(
+                  (previous) =>
+                    mergeOrders(
+                      previous,
+                      cloudOrders
+                    )
                 );
               }
-            }
-          );
+            );
 
-        unsubscribeCategories =
-          firebaseService.subscribeToCategories(
-            (cloudCategories) => {
-              if (cloudCategories) {
-                setCategories(cloudCategories);
-              }
-            }
-          );
+          // -------------------------------------------------
+          // REVIEWS
+          // -------------------------------------------------
 
-        unsubscribeOrders =
-          firebaseService.subscribeToOrders(
-            (cloudOrders) => {
-              if (cloudOrders) {
-                setOrders(cloudOrders);
+          unsubscribeReviews =
+            firebaseService.subscribeToReviews(
+              (cloudReviews) => {
+                if (
+                  Array.isArray(
+                    cloudReviews
+                  ) &&
+                  cloudReviews.length > 0
+                ) {
+                  setReviews(
+                    cloudReviews
+                  );
+                }
               }
-            }
-          );
+            );
 
-        unsubscribeReviews =
-          firebaseService.subscribeToReviews(
-            (cloudReviews) => {
-              if (cloudReviews) {
-                setReviews(cloudReviews);
-              }
-            }
-          );
+          // -------------------------------------------------
+          // COUPONS
+          // -------------------------------------------------
 
-        unsubscribeCoupons =
-          firebaseService.subscribeToCoupons(
-            (cloudCoupons) => {
-              if (cloudCoupons) {
-                setCoupons(cloudCoupons);
+          unsubscribeCoupons =
+            firebaseService.subscribeToCoupons(
+              (cloudCoupons) => {
+                if (
+                  Array.isArray(
+                    cloudCoupons
+                  ) &&
+                  cloudCoupons.length > 0
+                ) {
+                  setCoupons(
+                    cloudCoupons
+                  );
+                }
               }
-            }
-          );
+            );
 
-        unsubscribeSettings =
-          firebaseService.subscribeToSettings(
-            (cloudSettings) => {
-              if (cloudSettings) {
-                setSettings(cloudSettings);
+          // -------------------------------------------------
+          // SETTINGS
+          // -------------------------------------------------
+
+          unsubscribeSettings =
+            firebaseService.subscribeToSettings(
+              (cloudSettings) => {
+                if (cloudSettings) {
+                  setSettings(
+                    cloudSettings
+                  );
+                }
               }
-            }
+            );
+        } catch (error) {
+          console.warn(
+            'Firebase realtime subscriptions:',
+            error
           );
-      } catch (error) {
-        console.warn(
-          'Firebase realtime subscriptions:',
-          error
-        );
-      }
-    };
+        }
+      };
 
     initializeStore();
 
@@ -540,18 +760,27 @@ export const StoreProvider: React.FC<{
         );
       }
     };
-  }, [refreshAllData, mergeProducts]);
+  }, [
+    refreshAllData,
+    mergeProducts,
+    mergeOrders,
+  ]);
 
   // =========================================================
   // LANGUAGE
   // =========================================================
 
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.lang = language;
+    if (
+      typeof document !== 'undefined'
+    ) {
+      document.documentElement.lang =
+        language;
 
       document.documentElement.dir =
-        language === 'ar' ? 'rtl' : 'ltr';
+        language === 'ar'
+          ? 'rtl'
+          : 'ltr';
     }
 
     localStorage.setItem(
@@ -631,18 +860,22 @@ export const StoreProvider: React.FC<{
         const existingIndex =
           previous.findIndex(
             (item) =>
-              item.product.id === product.id &&
-              item.selectedVariant === selectedVariant
+              item.product.id ===
+                product.id &&
+              item.selectedVariant ===
+                selectedVariant
           );
 
         if (existingIndex >= 0) {
-          const updated = [...previous];
+          const updated = [
+            ...previous,
+          ];
 
           updated[existingIndex] = {
             ...updated[existingIndex],
             quantity:
-              updated[existingIndex].quantity +
-              quantity,
+              updated[existingIndex]
+                .quantity + quantity,
           };
 
           return updated;
@@ -671,204 +904,252 @@ export const StoreProvider: React.FC<{
         'success'
       );
     },
-    [language, showToast]
+    [
+      language,
+      showToast,
+    ]
   );
 
-  const removeFromCart = useCallback(
-    (productId: string) => {
-      setCart((previous) =>
-        previous.filter(
-          (item) => item.product.id !== productId
-        )
-      );
-    },
-    []
-  );
-
-  const updateCartQuantity = useCallback(
-    (productId: string, quantity: number) => {
-      if (quantity <= 0) {
+  const removeFromCart =
+    useCallback(
+      (productId: string) => {
         setCart((previous) =>
           previous.filter(
             (item) =>
-              item.product.id !== productId
+              item.product.id !==
+              productId
           )
         );
+      },
+      []
+    );
 
-        return;
-      }
+  const updateCartQuantity =
+    useCallback(
+      (
+        productId: string,
+        quantity: number
+      ) => {
+        if (quantity <= 0) {
+          setCart((previous) =>
+            previous.filter(
+              (item) =>
+                item.product.id !==
+                productId
+            )
+          );
 
-      setCart((previous) =>
-        previous.map((item) =>
-          item.product.id === productId
-            ? { ...item, quantity }
-            : item
-        )
-      );
-    },
-    []
-  );
+          return;
+        }
 
-  const clearCart = useCallback(() => {
-    setCart([]);
-    setActiveCoupon(null);
-  }, []);
+        setCart((previous) =>
+          previous.map((item) =>
+            item.product.id ===
+            productId
+              ? {
+                  ...item,
+                  quantity,
+                }
+              : item
+          )
+        );
+      },
+      []
+    );
+
+  const clearCart =
+    useCallback(() => {
+      setCart([]);
+      setActiveCoupon(null);
+    }, []);
 
   // =========================================================
   // WISHLIST
   // =========================================================
 
-  const toggleWishlist = useCallback(
-    (productId: string) => {
-      setWishlist((previous) => {
-        const exists =
-          previous.includes(productId);
+  const toggleWishlist =
+    useCallback(
+      (productId: string) => {
+        setWishlist((previous) => {
+          const exists =
+            previous.includes(
+              productId
+            );
 
-        const updated = exists
-          ? previous.filter(
-              (id) => id !== productId
-            )
-          : [...previous, productId];
+          const updated = exists
+            ? previous.filter(
+                (id) =>
+                  id !== productId
+              )
+            : [
+                ...previous,
+                productId,
+              ];
 
-        storageService.saveWishlist(updated);
+          storageService.saveWishlist(
+            updated
+          );
 
-        showToast(
-          language === 'ar'
-            ? exists
-              ? 'تمت الإزالة من المفضلة'
-              : 'تمت الإضافة للمفضلة'
-            : exists
-            ? 'Removed from Wishlist'
-            : 'Added to Wishlist',
-          '',
-          exists ? 'info' : 'success'
-        );
+          showToast(
+            language === 'ar'
+              ? exists
+                ? 'تمت الإزالة من المفضلة'
+                : 'تمت الإضافة للمفضلة'
+              : exists
+              ? 'Removed from Wishlist'
+              : 'Added to Wishlist',
+            '',
+            exists
+              ? 'info'
+              : 'success'
+          );
 
-        return updated;
-      });
-    },
-    [language, showToast]
-  );
+          return updated;
+        });
+      },
+      [
+        language,
+        showToast,
+      ]
+    );
 
-  const isInWishlist = useCallback(
-    (productId: string) =>
-      wishlist.includes(productId),
-    [wishlist]
-  );
+  const isInWishlist =
+    useCallback(
+      (productId: string) =>
+        wishlist.includes(
+          productId
+        ),
+      [wishlist]
+    );
 
   // =========================================================
   // CART CALCULATIONS
   // =========================================================
 
-  const cartSubtotal = useMemo(() => {
-    return cart.reduce(
-      (total, item) =>
-        total +
-        item.product.price * item.quantity,
-      0
-    );
-  }, [cart]);
+  const cartSubtotal =
+    useMemo(() => {
+      return cart.reduce(
+        (total, item) =>
+          total +
+          item.product.price *
+            item.quantity,
+        0
+      );
+    }, [cart]);
 
-  const cartDiscount = useMemo(() => {
-    if (!activeCoupon || cartSubtotal <= 0) {
-      return 0;
-    }
+  const cartDiscount =
+    useMemo(() => {
+      if (
+        !activeCoupon ||
+        cartSubtotal <= 0
+      ) {
+        return 0;
+      }
 
-    if (
-      cartSubtotal <
-      activeCoupon.minOrder
-    ) {
-      return 0;
-    }
+      if (
+        cartSubtotal <
+        activeCoupon.minOrder
+      ) {
+        return 0;
+      }
 
-    if (
-      activeCoupon.type === 'percentage'
-    ) {
-      const discount =
-        (cartSubtotal *
-          activeCoupon.value) /
-        100;
+      if (
+        activeCoupon.type ===
+        'percentage'
+      ) {
+        const discount =
+          (cartSubtotal *
+            activeCoupon.value) /
+          100;
 
-      return activeCoupon.maxDiscount
-        ? Math.min(
-            discount,
-            activeCoupon.maxDiscount
-          )
-        : discount;
-    }
+        return activeCoupon.maxDiscount
+          ? Math.min(
+              discount,
+              activeCoupon.maxDiscount
+            )
+          : discount;
+      }
 
-    return Math.min(
-      activeCoupon.value,
-      cartSubtotal
-    );
-  }, [activeCoupon, cartSubtotal]);
+      return Math.min(
+        activeCoupon.value,
+        cartSubtotal
+      );
+    }, [
+      activeCoupon,
+      cartSubtotal,
+    ]);
 
-  const cartShipping = useMemo(() => {
-    if (cartSubtotal <= 0) {
-      return 0;
-    }
+  const cartShipping =
+    useMemo(() => {
+      if (cartSubtotal <= 0) {
+        return 0;
+      }
 
-    if (
-      cartSubtotal >=
-      settings.freeShippingThreshold
-    ) {
-      return 0;
-    }
+      if (
+        cartSubtotal >=
+        settings.freeShippingThreshold
+      ) {
+        return 0;
+      }
 
-    return settings.shippingFee;
-  }, [
-    cartSubtotal,
-    settings.freeShippingThreshold,
-    settings.shippingFee,
-  ]);
+      return settings.shippingFee;
+    }, [
+      cartSubtotal,
+      settings.freeShippingThreshold,
+      settings.shippingFee,
+    ]);
 
-  const cartTotal = useMemo(() => {
-    return Math.max(
-      0,
-      cartSubtotal -
-        cartDiscount +
-        cartShipping
-    );
-  }, [
-    cartSubtotal,
-    cartDiscount,
-    cartShipping,
-  ]);
+  const cartTotal =
+    useMemo(() => {
+      return Math.max(
+        0,
+        cartSubtotal -
+          cartDiscount +
+          cartShipping
+      );
+    }, [
+      cartSubtotal,
+      cartDiscount,
+      cartShipping,
+    ]);
 
-  const cartCount = useMemo(() => {
-    return cart.reduce(
-      (total, item) =>
-        total + item.quantity,
-      0
-    );
-  }, [cart]);
+  const cartCount =
+    useMemo(() => {
+      return cart.reduce(
+        (total, item) =>
+          total + item.quantity,
+        0
+      );
+    }, [cart]);
 
-  const freeShippingProgress = useMemo(() => {
-    if (
-      cartSubtotal >=
-      settings.freeShippingThreshold
-    ) {
-      return 100;
-    }
+  const freeShippingProgress =
+    useMemo(() => {
+      if (
+        cartSubtotal >=
+        settings.freeShippingThreshold
+      ) {
+        return 100;
+      }
 
-    if (
-      settings.freeShippingThreshold <= 0
-    ) {
-      return 100;
-    }
+      if (
+        settings.freeShippingThreshold <=
+        0
+      ) {
+        return 100;
+      }
 
-    return Math.min(
-      100,
-      Math.round(
-        (cartSubtotal /
-          settings.freeShippingThreshold) *
-          100
-      )
-    );
-  }, [
-    cartSubtotal,
-    settings.freeShippingThreshold,
-  ]);
+      return Math.min(
+        100,
+        Math.round(
+          (cartSubtotal /
+            settings.freeShippingThreshold) *
+            100
+        )
+      );
+    }, [
+      cartSubtotal,
+      settings.freeShippingThreshold,
+    ]);
 
   const amountLeftForFreeShipping =
     useMemo(() => {
@@ -886,522 +1167,420 @@ export const StoreProvider: React.FC<{
   // COUPONS
   // =========================================================
 
-  const applyCoupon = useCallback(
-    (code: string) => {
-      const cleaned =
-        code.trim().toUpperCase();
+  const applyCoupon =
+    useCallback(
+      (code: string) => {
+        const cleaned =
+          code.trim().toUpperCase();
 
-      const match = coupons.find(
-        (coupon) =>
-          coupon.code.toUpperCase() ===
-            cleaned &&
-          coupon.isActive
-      );
+        const match = coupons.find(
+          (coupon) =>
+            coupon.code.toUpperCase() ===
+              cleaned &&
+            coupon.isActive
+        );
 
-      if (!match) {
+        if (!match) {
+          return {
+            success: false,
+            message:
+              language === 'ar'
+                ? 'كود الخصم غير صحيح أو منتهي الصلاحية'
+                : 'Invalid promo code',
+          };
+        }
+
+        if (
+          cartSubtotal <
+          match.minOrder
+        ) {
+          const difference =
+            match.minOrder -
+            cartSubtotal;
+
+          return {
+            success: false,
+            message:
+              language === 'ar'
+                ? `الحد الأدنى لتطبيق الكود هو ${match.minOrder} ج.م (أضيفي منتجات بقيمة ${difference} ج.م)`
+                : `Minimum order for this code is ${match.minOrder} EGP (add ${difference} EGP more)`,
+          };
+        }
+
+        if (
+          match.usageLimit &&
+          match.usedCount >=
+            match.usageLimit
+        ) {
+          return {
+            success: false,
+            message:
+              language === 'ar'
+                ? 'تم الوصول للحد الأقصى لاستخدام هذا الكود'
+                : 'This coupon has reached its usage limit',
+          };
+        }
+
+        if (
+          match.expiryDate &&
+          new Date(
+            match.expiryDate
+          ) < new Date()
+        ) {
+          return {
+            success: false,
+            message:
+              language === 'ar'
+                ? 'هذا الكود منتهي الصلاحية'
+                : 'This coupon has expired',
+          };
+        }
+
+        setActiveCoupon(match);
+
         return {
-          success: false,
+          success: true,
           message:
             language === 'ar'
-              ? 'كود الخصم غير صحيح أو منتهي الصلاحية'
-              : 'Invalid promo code',
+              ? 'تم تطبيق كود الخصم بنجاح! 🎉'
+              : 'Coupon applied successfully! 🎉',
         };
-      }
+      },
+      [
+        coupons,
+        cartSubtotal,
+        language,
+      ]
+    );
 
-      if (
-        cartSubtotal <
-        match.minOrder
-      ) {
-        const difference =
-          match.minOrder -
-          cartSubtotal;
-
-        return {
-          success: false,
-          message:
-            language === 'ar'
-              ? `الحد الأدنى لتطبيق الكود هو ${match.minOrder} ج.م (أضيفي منتجات بقيمة ${difference} ج.م)`
-              : `Minimum order for this code is ${match.minOrder} EGP (add ${difference} EGP more)`,
-        };
-      }
-
-      if (
-        match.usageLimit &&
-        match.usedCount >=
-          match.usageLimit
-      ) {
-        return {
-          success: false,
-          message:
-            language === 'ar'
-              ? 'تم الوصول للحد الأقصى لاستخدام هذا الكود'
-              : 'This coupon has reached its usage limit',
-        };
-      }
-
-      if (
-        match.expiryDate &&
-        new Date(match.expiryDate) <
-          new Date()
-      ) {
-        return {
-          success: false,
-          message:
-            language === 'ar'
-              ? 'هذا الكود منتهي الصلاحية'
-              : 'This coupon has expired',
-        };
-      }
-
-      setActiveCoupon(match);
-
-      return {
-        success: true,
-        message:
-          language === 'ar'
-            ? 'تم تطبيق كود الخصم بنجاح! 🎉'
-            : 'Coupon applied successfully! 🎉',
-      };
-    },
-    [coupons, cartSubtotal, language]
-  );
-
-  const removeCoupon = useCallback(() => {
-    setActiveCoupon(null);
-  }, []);
+  const removeCoupon =
+    useCallback(() => {
+      setActiveCoupon(null);
+    }, []);
 
   // =========================================================
   // CREATE ORDER
   // =========================================================
 
-  const createOrder = useCallback(
-    async (orderData: {
-      customerName: string;
-      phone: string;
-      governorate: string;
-      city: string;
-      address: string;
-      notes?: string;
-      paymentMethod: Order['paymentMethod'];
-      senderTransferNumber?: string;
-    }): Promise<Order> => {
-      const orderId =
-        generateOrderId();
+  const createOrder =
+    useCallback(
+      async (orderData: {
+        customerName: string;
+        phone: string;
+        governorate: string;
+        city: string;
+        address: string;
+        notes?: string;
+        paymentMethod: Order['paymentMethod'];
+        senderTransferNumber?: string;
+      }): Promise<Order> => {
+        const orderId =
+          generateOrderId();
 
-      const orderItems =
-        cart.map((item) => ({
-          productId:
-            item.product.id,
-          productName:
-            item.product.name,
-          price:
-            item.product.price,
-          quantity:
-            item.quantity,
-          image:
-            item.product.images[0] || '',
-        }));
+        const now =
+          new Date().toISOString();
 
-      const newOrder: Order = {
-        id: orderId,
-        customerName:
-          orderData.customerName,
-        phone:
-          orderData.phone,
-        governorate:
-          orderData.governorate,
-        city:
-          orderData.city,
-        address:
-          orderData.address,
-        notes:
-          orderData.notes,
-        items:
-          orderItems,
-        subtotal:
-          cartSubtotal,
-        discount:
-          cartDiscount,
-        shipping:
-          cartShipping,
-        total:
-          cartTotal,
-        couponCode:
-          activeCoupon?.code,
-        paymentMethod:
-          orderData.paymentMethod,
-        senderTransferNumber:
-          orderData.senderTransferNumber,
-        status: 'new',
-        createdAt:
-          new Date().toISOString(),
-        updatedAt:
-          new Date().toISOString(),
-      };
+        const orderItems =
+          cart.map((item) => ({
+            productId:
+              item.product.id,
 
-      await storageService.saveOrder(
-        newOrder
-      );
+            productName:
+              item.product.name,
 
-      setOrders((previous) => [
-        newOrder,
-        ...previous,
-      ]);
+            price:
+              item.product.price,
 
-      try {
-        await firebaseService.saveOrder(
-          newOrder
-        );
-      } catch (error) {
-        console.warn(
-          'Firebase order save failed:',
-          error
-        );
-      }
+            quantity:
+              item.quantity,
 
-      if (activeCoupon) {
-        const updatedCoupon = {
-          ...activeCoupon,
-          usedCount:
-            activeCoupon.usedCount + 1,
+            image:
+              item.product.images[0] ||
+              '',
+          }));
+
+        const newOrder: Order = {
+          id: orderId,
+
+          customerName:
+            orderData.customerName,
+
+          phone:
+            orderData.phone,
+
+          governorate:
+            orderData.governorate,
+
+          city:
+            orderData.city,
+
+          address:
+            orderData.address,
+
+          notes:
+            orderData.notes,
+
+          items:
+            orderItems,
+
+          subtotal:
+            cartSubtotal,
+
+          discount:
+            cartDiscount,
+
+          shipping:
+            cartShipping,
+
+          total:
+            cartTotal,
+
+          couponCode:
+            activeCoupon?.code,
+
+          paymentMethod:
+            orderData.paymentMethod,
+
+          senderTransferNumber:
+            orderData.senderTransferNumber,
+
+          status: 'new',
+
+          createdAt: now,
+
+          updatedAt: now,
         };
 
-        await storageService.saveCoupon(
-          updatedCoupon
-        );
-
-        setCoupons((previous) =>
-          previous.map((coupon) =>
-            coupon.id ===
-            updatedCoupon.id
-              ? updatedCoupon
-              : coupon
-          )
-        );
-      }
-
-      for (const item of cart) {
-        const product =
-          products.find(
-            (p) =>
-              p.id ===
-              item.product.id
+        /*
+         * احفظ الطلب محلياً أولاً
+         * حتى لا يضيع لو Firebase تأخر.
+         */
+        try {
+          await storageService.saveOrder(
+            newOrder
           );
-
-        if (!product) {
-          continue;
+        } catch (error) {
+          console.warn(
+            'Local order save failed:',
+            error
+          );
         }
 
-        const updatedProduct = {
-          ...product,
-          stock: Math.max(
-            0,
-            product.stock -
-              item.quantity
-          ),
-          updatedAt:
-            new Date().toISOString(),
-        };
-
-        await storageService.saveProduct(
-          updatedProduct
-        );
-
-        setProducts((previous) =>
-          previous.map((p) =>
-            p.id ===
-            updatedProduct.id
-              ? updatedProduct
-              : p
+        /*
+         * أضفه للواجهة فوراً.
+         */
+        setOrders((previous) =>
+          mergeOrders(
+            [newOrder],
+            previous
           )
         );
-      }
 
-      clearCart();
+        /*
+         * حفظ في Firebase.
+         */
+        try {
+          await firebaseService.saveOrder(
+            newOrder
+          );
+        } catch (error) {
+          console.warn(
+            'Firebase order save failed:',
+            error
+          );
+        }
 
-      return newOrder;
-    },
-    [
-      cart,
-      cartSubtotal,
-      cartDiscount,
-      cartShipping,
-      cartTotal,
-      activeCoupon,
-      products,
-      clearCart,
-    ]
-  );
+        // ---------------------------------------------------
+        // COUPON
+        // ---------------------------------------------------
+
+        if (activeCoupon) {
+          const updatedCoupon = {
+            ...activeCoupon,
+
+            usedCount:
+              activeCoupon.usedCount +
+              1,
+          };
+
+          try {
+            await storageService.saveCoupon(
+              updatedCoupon
+            );
+          } catch (error) {
+            console.warn(
+              'Coupon local save failed:',
+              error
+            );
+          }
+
+          setCoupons((previous) =>
+            previous.map((coupon) =>
+              coupon.id ===
+              updatedCoupon.id
+                ? updatedCoupon
+                : coupon
+            )
+          );
+        }
+
+        // ---------------------------------------------------
+        // UPDATE STOCK
+        // ---------------------------------------------------
+
+        for (const item of cart) {
+          const product =
+            products.find(
+              (p) =>
+                p.id ===
+                item.product.id
+            );
+
+          if (!product) {
+            continue;
+          }
+
+          const updatedProduct = {
+            ...product,
+
+            stock: Math.max(
+              0,
+              product.stock -
+                item.quantity
+            ),
+
+            updatedAt:
+              new Date().toISOString(),
+          };
+
+          try {
+            await storageService.saveProduct(
+              updatedProduct
+            );
+          } catch (error) {
+            console.warn(
+              'Product stock update failed:',
+              error
+            );
+          }
+
+          setProducts((previous) =>
+            previous.map((p) =>
+              p.id ===
+              updatedProduct.id
+                ? updatedProduct
+                : p
+            )
+          );
+        }
+
+        clearCart();
+
+        return newOrder;
+      },
+      [
+        cart,
+        cartSubtotal,
+        cartDiscount,
+        cartShipping,
+        cartTotal,
+        activeCoupon,
+        products,
+        clearCart,
+        mergeOrders,
+      ]
+    );
 
   // =========================================================
   // REVIEWS
   // =========================================================
 
-  const addReview = useCallback(
-    async (reviewData: {
-      productId: string;
-      customerName: string;
-      rating: number;
-      comment: string;
-      date?: string;
-      verifiedPurchase?: boolean;
-      status?: 'approved' | 'pending';
-    }) => {
-      const newReview: Review = {
-        id: `rev-${Date.now()}`,
-        productId:
-          reviewData.productId,
-        customerName:
-          reviewData.customerName,
-        rating:
-          reviewData.rating,
-        comment:
-          reviewData.comment,
-        date:
-          reviewData.date ||
-          new Date()
-            .toISOString()
-            .split('T')[0],
-        verifiedPurchase:
-          reviewData.verifiedPurchase ??
-          true,
-        status:
-          reviewData.status ||
-          'approved',
-      };
+  const addReview =
+    useCallback(
+      async (reviewData: {
+        productId: string;
+        customerName: string;
+        rating: number;
+        comment: string;
+        date?: string;
+        verifiedPurchase?: boolean;
+        status?: 'approved' | 'pending';
+      }) => {
+        const newReview: Review = {
+          id: `rev-${Date.now()}`,
 
-      await storageService.saveReview(
-        newReview
-      );
+          productId:
+            reviewData.productId,
 
-      setReviews((previous) => [
-        newReview,
-        ...previous,
-      ]);
+          customerName:
+            reviewData.customerName,
 
-      const product =
-        products.find(
-          (p) =>
-            p.id ===
-            reviewData.productId
+          rating:
+            reviewData.rating,
+
+          comment:
+            reviewData.comment,
+
+          date:
+            reviewData.date ||
+            new Date()
+              .toISOString()
+              .split('T')[0],
+
+          verifiedPurchase:
+            reviewData.verifiedPurchase ??
+            true,
+
+          status:
+            reviewData.status ||
+            'approved',
+        };
+
+        await storageService.saveReview(
+          newReview
         );
 
-      if (product) {
-        const productReviews = [
-          ...reviews.filter(
-            (review) =>
-              review.productId ===
-              product.id
-          ),
+        setReviews((previous) => [
           newReview,
-        ];
-
-        const average =
-          productReviews.reduce(
-            (sum, review) =>
-              sum + review.rating,
-            0
-          ) /
-          productReviews.length;
-
-        const updatedProduct: Product = {
-          ...product,
-          rating:
-            Number(
-              average.toFixed(1)
-            ),
-          reviewCount:
-            productReviews.length,
-        };
-
-        await storageService.saveProduct(
-          updatedProduct
-        );
-
-        setProducts((previous) =>
-          previous.map((p) =>
-            p.id ===
-            updatedProduct.id
-              ? updatedProduct
-              : p
-          )
-        );
-      }
-
-      showToast(
-        language === 'ar'
-          ? 'تم إضافة التقييم بنجاح'
-          : 'Review Added',
-        language === 'ar'
-          ? 'تم حفظ التقييم ونشره في المتجر'
-          : 'Review has been saved and published',
-        'success'
-      );
-    },
-    [
-      products,
-      reviews,
-      language,
-      showToast,
-    ]
-  );
-
-  const saveReview = useCallback(
-    async (review: Review) => {
-      await storageService.saveReview(
-        review
-      );
-
-      setReviews((previous) => {
-        const index =
-          previous.findIndex(
-            (r) =>
-              r.id === review.id
-          );
-
-        if (index >= 0) {
-          const updated = [
-            ...previous,
-          ];
-
-          updated[index] = review;
-
-          return updated;
-        }
-
-        return [
-          review,
           ...previous,
-        ];
-      });
-
-      const product =
-        products.find(
-          (p) =>
-            p.id ===
-            review.productId
-        );
-
-      if (product) {
-        const otherReviews =
-          reviews.filter(
-            (r) =>
-              r.productId ===
-                product.id &&
-              r.id !== review.id
-          );
-
-        const allReviews = [
-          ...otherReviews,
-          review,
-        ];
-
-        const average =
-          allReviews.reduce(
-            (sum, r) =>
-              sum + r.rating,
-            0
-          ) /
-          allReviews.length;
-
-        const updatedProduct: Product = {
-          ...product,
-          rating:
-            Number(
-              average.toFixed(1)
-            ),
-          reviewCount:
-            allReviews.length,
-        };
-
-        await storageService.saveProduct(
-          updatedProduct
-        );
-
-        setProducts((previous) =>
-          previous.map((p) =>
-            p.id ===
-            updatedProduct.id
-              ? updatedProduct
-              : p
-          )
-        );
-      }
-
-      showToast(
-        language === 'ar'
-          ? 'تم حفظ التقييم'
-          : 'Review Saved',
-        language === 'ar'
-          ? 'تم تحديث بيانات التقييم بنجاح'
-          : 'Review updated successfully',
-        'success'
-      );
-    },
-    [
-      products,
-      reviews,
-      language,
-      showToast,
-    ]
-  );
-
-  const deleteReview = useCallback(
-    async (id: string) => {
-      const review =
-        reviews.find(
-          (r) => r.id === id
-        );
-
-      await storageService.deleteReview(
-        id
-      );
-
-      setReviews((previous) =>
-        previous.filter(
-          (r) => r.id !== id
-        )
-      );
-
-      if (
-        review &&
-        review.productId
-      ) {
-        const remaining =
-          reviews.filter(
-            (r) =>
-              r.productId ===
-                review.productId &&
-              r.id !== id
-          );
+        ]);
 
         const product =
           products.find(
             (p) =>
               p.id ===
-              review.productId
+              reviewData.productId
           );
 
         if (product) {
-          const average =
-            remaining.length > 0
-              ? remaining.reduce(
-                  (sum, r) =>
-                    sum + r.rating,
-                  0
-                ) /
-                remaining.length
-              : 5;
+          const productReviews = [
+            ...reviews.filter(
+              (review) =>
+                review.productId ===
+                product.id
+            ),
+            newReview,
+          ];
 
-          const updatedProduct: Product = {
-            ...product,
-            rating:
-              Number(
+          const average =
+            productReviews.reduce(
+              (sum, review) =>
+                sum + review.rating,
+              0
+            ) /
+            productReviews.length;
+
+          const updatedProduct: Product =
+            {
+              ...product,
+
+              rating: Number(
                 average.toFixed(1)
               ),
-            reviewCount:
-              remaining.length,
-          };
+
+              reviewCount:
+                productReviews.length,
+            };
 
           await storageService.saveProduct(
             updatedProduct
@@ -1416,218 +1595,469 @@ export const StoreProvider: React.FC<{
             )
           );
         }
-      }
-    },
-    [products, reviews]
-  );
+
+        showToast(
+          language === 'ar'
+            ? 'تم إضافة التقييم بنجاح'
+            : 'Review Added',
+
+          language === 'ar'
+            ? 'تم حفظ التقييم ونشره في المتجر'
+            : 'Review has been saved and published',
+
+          'success'
+        );
+      },
+      [
+        products,
+        reviews,
+        language,
+        showToast,
+      ]
+    );
+
+  const saveReview =
+    useCallback(
+      async (review: Review) => {
+        await storageService.saveReview(
+          review
+        );
+
+        setReviews((previous) => {
+          const index =
+            previous.findIndex(
+              (r) =>
+                r.id === review.id
+            );
+
+          if (index >= 0) {
+            const updated = [
+              ...previous,
+            ];
+
+            updated[index] = review;
+
+            return updated;
+          }
+
+          return [
+            review,
+            ...previous,
+          ];
+        });
+
+        const product =
+          products.find(
+            (p) =>
+              p.id ===
+              review.productId
+          );
+
+        if (product) {
+          const otherReviews =
+            reviews.filter(
+              (r) =>
+                r.productId ===
+                  product.id &&
+                r.id !== review.id
+            );
+
+          const allReviews = [
+            ...otherReviews,
+            review,
+          ];
+
+          const average =
+            allReviews.reduce(
+              (sum, r) =>
+                sum + r.rating,
+              0
+            ) /
+            allReviews.length;
+
+          const updatedProduct: Product =
+            {
+              ...product,
+
+              rating: Number(
+                average.toFixed(1)
+              ),
+
+              reviewCount:
+                allReviews.length,
+            };
+
+          await storageService.saveProduct(
+            updatedProduct
+          );
+
+          setProducts((previous) =>
+            previous.map((p) =>
+              p.id ===
+              updatedProduct.id
+                ? updatedProduct
+                : p
+            )
+          );
+        }
+
+        showToast(
+          language === 'ar'
+            ? 'تم حفظ التقييم'
+            : 'Review Saved',
+
+          language === 'ar'
+            ? 'تم تحديث بيانات التقييم بنجاح'
+            : 'Review updated successfully',
+
+          'success'
+        );
+      },
+      [
+        products,
+        reviews,
+        language,
+        showToast,
+      ]
+    );
+
+  const deleteReview =
+    useCallback(
+      async (id: string) => {
+        const review =
+          reviews.find(
+            (r) => r.id === id
+          );
+
+        await storageService.deleteReview(
+          id
+        );
+
+        setReviews((previous) =>
+          previous.filter(
+            (r) => r.id !== id
+          )
+        );
+
+        if (
+          review &&
+          review.productId
+        ) {
+          const remaining =
+            reviews.filter(
+              (r) =>
+                r.productId ===
+                  review.productId &&
+                r.id !== id
+            );
+
+          const product =
+            products.find(
+              (p) =>
+                p.id ===
+                review.productId
+            );
+
+          if (product) {
+            const average =
+              remaining.length > 0
+                ? remaining.reduce(
+                    (sum, r) =>
+                      sum + r.rating,
+                    0
+                  ) /
+                  remaining.length
+                : 5;
+
+            const updatedProduct: Product =
+              {
+                ...product,
+
+                rating: Number(
+                  average.toFixed(1)
+                ),
+
+                reviewCount:
+                  remaining.length,
+              };
+
+            await storageService.saveProduct(
+              updatedProduct
+            );
+
+            setProducts((previous) =>
+              previous.map((p) =>
+                p.id ===
+                updatedProduct.id
+                  ? updatedProduct
+                  : p
+              )
+            );
+          }
+        }
+      },
+      [
+        products,
+        reviews,
+      ]
+    );
 
   const clearAllReviews =
-    useCallback(async () => {
-      await storageService.clearAllReviews();
+    useCallback(
+      async () => {
+        await storageService.clearAllReviews();
 
-      setReviews([]);
+        setReviews([]);
 
-      const updatedProducts =
-        products.map((product) => ({
-          ...product,
-          rating: 5,
-          reviewCount: 0,
-        }));
+        const updatedProducts =
+          products.map(
+            (product) => ({
+              ...product,
+              rating: 5,
+              reviewCount: 0,
+            })
+          );
 
-      for (const product of updatedProducts) {
-        await storageService.saveProduct(
-          product
+        for (const product of
+          updatedProducts) {
+          await storageService.saveProduct(
+            product
+          );
+        }
+
+        setProducts(
+          updatedProducts
         );
-      }
 
-      setProducts(updatedProducts);
+        showToast(
+          language === 'ar'
+            ? 'تم تنظيف التقييمات'
+            : 'Reviews Cleared',
 
-      showToast(
-        language === 'ar'
-          ? 'تم تنظيف التقييمات'
-          : 'Reviews Cleared',
-        language === 'ar'
-          ? 'تم حذف كافة التقييمات السابقة بنجاح'
-          : 'All reviews have been deleted',
-        'success'
-      );
-    }, [
-      products,
-      language,
-      showToast,
-    ]);
+          language === 'ar'
+            ? 'تم حذف كافة التقييمات السابقة بنجاح'
+            : 'All reviews have been deleted',
+
+          'success'
+        );
+      },
+      [
+        products,
+        language,
+        showToast,
+      ]
+    );
 
   // =========================================================
   // PRODUCTS
   // =========================================================
 
-  const saveProduct = useCallback(
-    async (product: Product) => {
-      await storageService.saveProduct(
-        product
-      );
-
-      setProducts((previous) => {
-        const index =
-          previous.findIndex(
-            (p) =>
-              p.id === product.id
-          );
-
-        if (index >= 0) {
-          const updated = [
-            ...previous,
-          ];
-
-          updated[index] = product;
-
-          return updated;
-        }
-
-        return [
-          ...previous,
-          product,
-        ];
-      });
-    },
-    []
-  );
-
-  const addProduct = useCallback(
-    async (
-      product:
-        | Omit<
-            Product,
-            'id' |
-              'createdAt' |
-              'updatedAt'
-          >
-        | Product
-    ) => {
-      const newProduct: Product = {
-        ...product,
-
-        id:
-          'id' in product &&
-          product.id
-            ? product.id
-            : `prod-${Date.now()}`,
-
-        createdAt:
-          'createdAt' in product &&
-          product.createdAt
-            ? product.createdAt
-            : new Date().toISOString(),
-
-        updatedAt:
-          new Date().toISOString(),
-      };
-
-      await saveProduct(
-        newProduct
-      );
-    },
-    [saveProduct]
-  );
-
-  const updateProduct = useCallback(
-    async (
-      id: string,
-      partial: Partial<Product>
-    ) => {
-      const existing =
-        products.find(
-          (product) =>
-            product.id === id
+  const saveProduct =
+    useCallback(
+      async (product: Product) => {
+        await storageService.saveProduct(
+          product
         );
 
-      if (!existing) {
-        return;
-      }
+        setProducts((previous) => {
+          const index =
+            previous.findIndex(
+              (p) =>
+                p.id === product.id
+            );
 
-      const updatedProduct: Product = {
-        ...existing,
-        ...partial,
-        updatedAt:
-          new Date().toISOString(),
-      };
+          if (index >= 0) {
+            const updated = [
+              ...previous,
+            ];
 
-      await saveProduct(
-        updatedProduct
-      );
-    },
-    [products, saveProduct]
-  );
+            updated[index] = product;
+
+            return updated;
+          }
+
+          return [
+            ...previous,
+            product,
+          ];
+        });
+
+        try {
+          await firebaseService.saveProduct(
+            product
+          );
+        } catch (error) {
+          console.warn(
+            'Firebase product save failed:',
+            error
+          );
+        }
+      },
+      []
+    );
+
+  const addProduct =
+    useCallback(
+      async (
+        product:
+          | Omit<
+              Product,
+              'id' |
+                'createdAt' |
+                'updatedAt'
+            >
+          | Product
+      ) => {
+        const newProduct: Product =
+          {
+            ...product,
+
+            id:
+              'id' in product &&
+              product.id
+                ? product.id
+                : `prod-${Date.now()}`,
+
+            createdAt:
+              'createdAt' in product &&
+              product.createdAt
+                ? product.createdAt
+                : new Date().toISOString(),
+
+            updatedAt:
+              new Date().toISOString(),
+          };
+
+        await saveProduct(
+          newProduct
+        );
+      },
+      [saveProduct]
+    );
+
+  const updateProduct =
+    useCallback(
+      async (
+        id: string,
+        partial: Partial<Product>
+      ) => {
+        const existing =
+          products.find(
+            (product) =>
+              product.id === id
+          );
+
+        if (!existing) {
+          return;
+        }
+
+        const updatedProduct: Product =
+          {
+            ...existing,
+            ...partial,
+            updatedAt:
+              new Date().toISOString(),
+          };
+
+        await saveProduct(
+          updatedProduct
+        );
+      },
+      [
+        products,
+        saveProduct,
+      ]
+    );
 
   const deleteProduct =
-    useCallback(async (id: string) => {
-      await storageService.deleteProduct(
-        id
-      );
+    useCallback(
+      async (id: string) => {
+        await storageService.deleteProduct(
+          id
+        );
 
-      setProducts((previous) =>
-        previous.filter(
-          (product) =>
-            product.id !== id
-        )
-      );
-    }, []);
+        setProducts((previous) =>
+          previous.filter(
+            (product) =>
+              product.id !== id
+          )
+        );
+      },
+      []
+    );
 
   const clearAllProducts =
-    useCallback(async () => {
-      await storageService.clearAllProducts();
+    useCallback(
+      async () => {
+        await storageService.clearAllProducts();
 
-      setProducts([]);
+        setProducts([]);
 
-      showToast(
-        language === 'ar'
-          ? 'تم حذف المنتجات'
-          : 'Products Cleared',
-        language === 'ar'
-          ? 'تم مسح جميع المنتجات بنجاح'
-          : 'All products have been removed successfully',
-        'info'
-      );
-    }, [
-      language,
-      showToast,
-    ]);
+        showToast(
+          language === 'ar'
+            ? 'تم حذف المنتجات'
+            : 'Products Cleared',
+
+          language === 'ar'
+            ? 'تم مسح جميع المنتجات بنجاح'
+            : 'All products have been removed successfully',
+
+          'info'
+        );
+      },
+      [
+        language,
+        showToast,
+      ]
+    );
 
   // =========================================================
   // CATEGORIES
   // =========================================================
 
-  const saveCategory = useCallback(
-    async (category: Category) => {
-      await storageService.saveCategory(
-        category
-      );
+  const saveCategory =
+    useCallback(
+      async (category: Category) => {
+        await storageService.saveCategory(
+          category
+        );
 
-      setCategories((previous) => {
-        const index =
-          previous.findIndex(
-            (c) =>
-              c.id === category.id
-          );
+        setCategories((previous) => {
+          const index =
+            previous.findIndex(
+              (c) =>
+                c.id === category.id
+            );
 
-        if (index >= 0) {
-          const updated = [
+          if (index >= 0) {
+            const updated = [
+              ...previous,
+            ];
+
+            updated[index] = category;
+
+            return updated;
+          }
+
+          return [
             ...previous,
+            category,
           ];
+        });
 
-          updated[index] = category;
-
-          return updated;
+        try {
+          await firebaseService.saveCategory(
+            category
+          );
+        } catch (error) {
+          console.warn(
+            'Firebase category save failed:',
+            error
+          );
         }
-
-        return [
-          ...previous,
-          category,
-        ];
-      });
-    },
-    []
-  );
+      },
+      []
+    );
 
   const createCategory =
     useCallback(
@@ -1653,13 +2083,16 @@ export const StoreProvider: React.FC<{
               ''
             );
 
-        const newCategory: Category = {
-          ...category,
-          id:
-            category.id ||
-            `cat-${Date.now()}`,
-          slug,
-        };
+        const newCategory: Category =
+          {
+            ...category,
+
+            id:
+              category.id ||
+              `cat-${Date.now()}`,
+
+            slug,
+          };
 
         await saveCategory(
           newCategory
@@ -1689,22 +2122,28 @@ export const StoreProvider: React.FC<{
           ...partial,
         });
       },
-      [categories, saveCategory]
+      [
+        categories,
+        saveCategory,
+      ]
     );
 
   const deleteCategory =
-    useCallback(async (id: string) => {
-      await storageService.deleteCategory(
-        id
-      );
+    useCallback(
+      async (id: string) => {
+        await storageService.deleteCategory(
+          id
+        );
 
-      setCategories((previous) =>
-        previous.filter(
-          (category) =>
-            category.id !== id
-        )
-      );
-    }, []);
+        setCategories((previous) =>
+          previous.filter(
+            (category) =>
+              category.id !== id
+          )
+        );
+      },
+      []
+    );
 
   // =========================================================
   // ORDERS
@@ -1716,101 +2155,258 @@ export const StoreProvider: React.FC<{
         orderId: string,
         status: OrderStatus
       ) => {
-        const existingOrders =
-          await storageService.getOrders();
+        try {
+          /*
+           * ابحث في الـ state أولاً.
+           *
+           * الكود القديم كان يعتمد على:
+           * storageService.getOrders()
+           *
+           * وده كان ممكن يرجع بيانات قديمة
+           * أو [] وبالتالي الحالة لا تتغير.
+           */
 
-        const order =
-          existingOrders.find(
-            (item) =>
-              item.id === orderId
+          const existingOrder =
+            orders.find(
+              (order) =>
+                order.id === orderId
+            );
+
+          if (!existingOrder) {
+            console.warn(
+              'Order not found:',
+              orderId
+            );
+
+            showToast(
+              language === 'ar'
+                ? 'الطلب غير موجود'
+                : 'Order not found',
+
+              language === 'ar'
+                ? 'لم يتم العثور على الطلب'
+                : 'The order could not be found',
+
+              'error'
+            );
+
+            return;
+          }
+
+          const updatedOrder: Order =
+            {
+              ...existingOrder,
+
+              status,
+
+              updatedAt:
+                new Date().toISOString(),
+            };
+
+          /*
+           * تحديث الـ state فوراً
+           * عشان الاختيار يظهر مباشرة.
+           */
+
+          setOrders((previous) =>
+            previous.map((order) =>
+              order.id === orderId
+                ? updatedOrder
+                : order
+            )
           );
 
-        if (!order) {
-          return;
+          /*
+           * حفظ محلياً
+           */
+
+          try {
+            await storageService.saveOrder(
+              updatedOrder
+            );
+          } catch (error) {
+            console.warn(
+              'Local order status save failed:',
+              error
+            );
+          }
+
+          /*
+           * حفظ في Firebase
+           */
+
+          try {
+            await firebaseService.saveOrder(
+              updatedOrder
+            );
+          } catch (error) {
+            console.warn(
+              'Firebase order status update failed:',
+              error
+            );
+          }
+
+          showToast(
+            language === 'ar'
+              ? 'تم تحديث حالة الطلب'
+              : 'Order status updated',
+
+            language === 'ar'
+              ? 'تم حفظ حالة الطلب بنجاح'
+              : 'Order status has been saved successfully',
+
+            'success'
+          );
+        } catch (error) {
+          console.error(
+            'updateOrderStatus error:',
+            error
+          );
+
+          showToast(
+            language === 'ar'
+              ? 'حدث خطأ'
+              : 'Error',
+
+            language === 'ar'
+              ? 'لم نتمكن من تحديث حالة الطلب'
+              : 'Could not update order status',
+
+            'error'
+          );
         }
+      },
+      [
+        orders,
+        language,
+        showToast,
+      ]
+    );
 
-        const updatedOrder: Order = {
-          ...order,
-          status,
-          updatedAt:
-            new Date().toISOString(),
-        };
+  const deleteOrder =
+    useCallback(
+      async (id: string) => {
+        try {
+          /*
+           * حذف محلي
+           */
 
-        await storageService.saveOrder(
-          updatedOrder
+          try {
+            await storageService.deleteOrder(
+              id
+            );
+          } catch (error) {
+            console.warn(
+              'Local order delete failed:',
+              error
+            );
+          }
+
+          /*
+           * تحديث الـ state
+           */
+
+          setOrders((previous) =>
+            previous.filter(
+              (order) =>
+                order.id !== id
+            )
+          );
+
+          /*
+           * مهم:
+           *
+           * لا نستدعي firebaseService.deleteOrder
+           * هنا لأننا لا نعرف إن كانت الدالة
+           * موجودة في firebaseService عندك أم لا.
+           *
+           * لو كانت موجودة بالفعل نقدر نضيفها بعد
+           * مراجعة firebaseService.ts.
+           */
+
+          showToast(
+            language === 'ar'
+              ? 'تم حذف الطلب'
+              : 'Order deleted',
+
+            language === 'ar'
+              ? 'تم حذف الطلب بنجاح'
+              : 'Order has been deleted successfully',
+
+            'success'
+          );
+        } catch (error) {
+          console.error(
+            'deleteOrder error:',
+            error
+          );
+
+          showToast(
+            language === 'ar'
+              ? 'حدث خطأ'
+              : 'Error',
+
+            language === 'ar'
+              ? 'لم نتمكن من حذف الطلب'
+              : 'Could not delete order',
+
+            'error'
+          );
+        }
+      },
+      [
+        language,
+        showToast,
+      ]
+    );
+
+  // =========================================================
+  // COUPONS
+  // =========================================================
+
+  const saveCoupon =
+    useCallback(
+      async (coupon: Coupon) => {
+        await storageService.saveCoupon(
+          coupon
         );
 
-        setOrders((previous) =>
-          previous.map((item) =>
-            item.id === orderId
-              ? updatedOrder
-              : item
-          )
-        );
+        setCoupons((previous) => {
+          const index =
+            previous.findIndex(
+              (item) =>
+                item.id === coupon.id
+            );
+
+          if (index >= 0) {
+            const updated = [
+              ...previous,
+            ];
+
+            updated[index] = coupon;
+
+            return updated;
+          }
+
+          return [
+            ...previous,
+            coupon,
+          ];
+        });
 
         try {
-          await firebaseService.saveOrder(
-            updatedOrder
+          await firebaseService.saveCoupon(
+            coupon
           );
         } catch (error) {
           console.warn(
-            'Firebase order update failed:',
+            'Firebase coupon save failed:',
             error
           );
         }
       },
       []
     );
-
-  const deleteOrder =
-    useCallback(async (id: string) => {
-      await storageService.deleteOrder(
-        id
-      );
-
-      setOrders((previous) =>
-        previous.filter(
-          (order) =>
-            order.id !== id
-        )
-      );
-    }, []);
-
-  // =========================================================
-  // COUPONS
-  // =========================================================
-
-  const saveCoupon = useCallback(
-    async (coupon: Coupon) => {
-      await storageService.saveCoupon(
-        coupon
-      );
-
-      setCoupons((previous) => {
-        const index =
-          previous.findIndex(
-            (item) =>
-              item.id === coupon.id
-          );
-
-        if (index >= 0) {
-          const updated = [
-            ...previous,
-          ];
-
-          updated[index] = coupon;
-
-          return updated;
-        }
-
-        return [
-          ...previous,
-          coupon,
-        ];
-      });
-    },
-    []
-  );
 
   const createCoupon =
     useCallback(
@@ -1821,40 +2417,44 @@ export const StoreProvider: React.FC<{
           usageCount?: number;
         }
       ) => {
-        const newCoupon: Coupon = {
-          id:
-            coupon.id ||
-            `cp-${Date.now()}`,
+        const newCoupon: Coupon =
+          {
+            id:
+              coupon.id ||
+              `cp-${Date.now()}`,
 
-          code: coupon.code,
+            code:
+              coupon.code,
 
-          type: coupon.type,
+            type:
+              coupon.type,
 
-          value: coupon.value,
+            value:
+              coupon.value,
 
-          minOrder:
-            coupon.minOrder ??
-            coupon.minOrderAmount ??
-            0,
+            minOrder:
+              coupon.minOrder ??
+              coupon.minOrderAmount ??
+              0,
 
-          usedCount:
-            coupon.usedCount ??
-            coupon.usageCount ??
-            0,
+            usedCount:
+              coupon.usedCount ??
+              coupon.usageCount ??
+              0,
 
-          isActive:
-            coupon.isActive ??
-            true,
+            isActive:
+              coupon.isActive ??
+              true,
 
-          expiryDate:
-            coupon.expiryDate,
+            expiryDate:
+              coupon.expiryDate,
 
-          usageLimit:
-            coupon.usageLimit,
+            usageLimit:
+              coupon.usageLimit,
 
-          maxDiscount:
-            coupon.maxDiscount,
-        };
+            maxDiscount:
+              coupon.maxDiscount,
+          };
 
         await saveCoupon(
           newCoupon
@@ -1884,94 +2484,121 @@ export const StoreProvider: React.FC<{
           ...partial,
         });
       },
-      [coupons, saveCoupon]
+      [
+        coupons,
+        saveCoupon,
+      ]
     );
 
   const deleteCoupon =
-    useCallback(async (id: string) => {
-      await storageService.deleteCoupon(
-        id
-      );
+    useCallback(
+      async (id: string) => {
+        await storageService.deleteCoupon(
+          id
+        );
 
-      setCoupons((previous) =>
-        previous.filter(
-          (coupon) =>
-            coupon.id !== id
-        )
-      );
-    }, []);
+        setCoupons((previous) =>
+          previous.filter(
+            (coupon) =>
+              coupon.id !== id
+          )
+        );
+      },
+      []
+    );
 
   // =========================================================
   // SETTINGS
   // =========================================================
 
-  const saveSettings = useCallback(
-    async (
-      newSettings: StoreSettings
-    ) => {
-      await storageService.saveSettings(
-        newSettings
-      );
+  const saveSettings =
+    useCallback(
+      async (
+        newSettings: StoreSettings
+      ) => {
+        await storageService.saveSettings(
+          newSettings
+        );
 
-      setSettings(newSettings);
-    },
-    []
-  );
+        setSettings(
+          newSettings
+        );
 
-  const updateSettings = saveSettings;
+        try {
+          await firebaseService.saveSettings(
+            newSettings
+          );
+        } catch (error) {
+          console.warn(
+            'Firebase settings save failed:',
+            error
+          );
+        }
+      },
+      []
+    );
+
+  const updateSettings =
+    saveSettings;
 
   // =========================================================
   // DATABASE
   // =========================================================
 
-  const restoreBackup = useCallback(
-    async (dump: any) => {
-      await storageService.restoreFullDatabase(
-        dump
-      );
+  const restoreBackup =
+    useCallback(
+      async (dump: any) => {
+        await storageService.restoreFullDatabase(
+          dump
+        );
 
-      await refreshAllData();
-    },
-    [refreshAllData]
-  );
+        await refreshAllData();
+      },
+      [refreshAllData]
+    );
 
   const restoreDatabase =
     restoreBackup;
 
   const resetDatabaseToDefaults =
-    useCallback(async () => {
-      await storageService.restoreFullDatabase(
-        {
-          meta: {
-            version: 1,
-            initialized: true,
-            updatedAt:
-              new Date().toISOString(),
-          },
+    useCallback(
+      async () => {
+        await storageService.restoreFullDatabase(
+          {
+            meta: {
+              version: 1,
 
-          products:
-            INITIAL_PRODUCTS,
+              initialized: true,
 
-          categories:
-            INITIAL_CATEGORIES,
+              updatedAt:
+                new Date().toISOString(),
+            },
 
-          reviews:
-            INITIAL_REVIEWS,
+            products:
+              INITIAL_PRODUCTS,
 
-          coupons:
-            INITIAL_COUPONS,
+            categories:
+              INITIAL_CATEGORIES,
 
-          settings:
-            INITIAL_SETTINGS,
+            reviews:
+              INITIAL_REVIEWS,
 
-          orders: [],
+            coupons:
+              INITIAL_COUPONS,
 
-          wishlist: [],
-        }
-      );
+            settings:
+              INITIAL_SETTINGS,
 
-      await refreshAllData();
-    }, [refreshAllData]);
+            orders: [],
+
+            wishlist: [],
+          }
+        );
+
+        await refreshAllData();
+      },
+      [refreshAllData]
+    );
 
   // =========================================================
   // PROVIDER
@@ -1992,6 +2619,7 @@ export const StoreProvider: React.FC<{
         language,
         currency,
         t,
+
         isLoading,
 
         isCartOpen,

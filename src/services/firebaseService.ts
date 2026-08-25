@@ -9,7 +9,9 @@ import {
   writeBatch,
   Unsubscribe,
 } from 'firebase/firestore';
+
 import { db } from './firebase';
+
 import {
   Category,
   Coupon,
@@ -18,6 +20,7 @@ import {
   Review,
   StoreSettings,
 } from '../types';
+
 import {
   INITIAL_CATEGORIES,
   INITIAL_COUPONS,
@@ -26,7 +29,10 @@ import {
   INITIAL_SETTINGS,
 } from '../data/initialData';
 
-// Firestore collection names
+// ============================================================
+// FIRESTORE COLLECTIONS
+// ============================================================
+
 const COLLECTIONS = {
   PRODUCTS: 'products',
   CATEGORIES: 'categories',
@@ -37,408 +43,1075 @@ const COLLECTIONS = {
   META: 'meta',
 } as const;
 
+// ============================================================
+// FIREBASE SERVICE
+// ============================================================
+
 class FirebaseService {
   private isInitialized = false;
 
-  // Initialize Firestore with default seed data if collections are empty
+  // ==========================================================
+  // INITIALIZE FIRESTORE
+  // ==========================================================
+
   public async initializeFirestoreIfNeeded(): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      return;
+    }
+
     try {
-      const metaDocRef = doc(db, COLLECTIONS.META, 'db_meta');
+      const metaDocRef = doc(
+        db,
+        COLLECTIONS.META,
+        'db_meta'
+      );
+
       const metaSnap = await getDoc(metaDocRef);
 
-      if (!metaSnap.exists()) {
-        console.log('⚡ Initializing cloud Firestore database with default Sun Beauty botanical dataset...');
-        const batch = writeBatch(db);
+      // ------------------------------------------------------
+      // Database already initialized
+      // ------------------------------------------------------
 
-        // Seed products
-        for (const prod of INITIAL_PRODUCTS) {
-          const ref = doc(db, COLLECTIONS.PRODUCTS, prod.id);
-          batch.set(ref, prod);
-        }
+      if (metaSnap.exists()) {
+        this.isInitialized = true;
+        return;
+      }
 
-        // Seed categories
-        for (const cat of INITIAL_CATEGORIES) {
-          const ref = doc(db, COLLECTIONS.CATEGORIES, cat.id);
-          batch.set(ref, cat);
-        }
+      console.log(
+        '⚡ Initializing Sun Beauty Firestore database...'
+      );
 
-        // Seed reviews
-        for (const rev of INITIAL_REVIEWS) {
-          const ref = doc(db, COLLECTIONS.REVIEWS, rev.id);
-          batch.set(ref, rev);
-        }
+      const batch = writeBatch(db);
 
-        // Seed coupons
-        for (const cp of INITIAL_COUPONS) {
-          const ref = doc(db, COLLECTIONS.COUPONS, cp.id);
-          batch.set(ref, cp);
-        }
+      // ------------------------------------------------------
+      // Products
+      // ------------------------------------------------------
 
-        // Seed settings
-        const settingsRef = doc(db, COLLECTIONS.SETTINGS, 'main_settings');
-        batch.set(settingsRef, INITIAL_SETTINGS);
+      for (const product of INITIAL_PRODUCTS) {
+        const ref = doc(
+          db,
+          COLLECTIONS.PRODUCTS,
+          product.id
+        );
 
-        // Mark as initialized
-        batch.set(metaDocRef, {
+        batch.set(ref, product);
+      }
+
+      // ------------------------------------------------------
+      // Categories
+      // ------------------------------------------------------
+
+      for (const category of INITIAL_CATEGORIES) {
+        const ref = doc(
+          db,
+          COLLECTIONS.CATEGORIES,
+          category.id
+        );
+
+        batch.set(ref, category);
+      }
+
+      // ------------------------------------------------------
+      // Reviews
+      // ------------------------------------------------------
+
+      for (const review of INITIAL_REVIEWS) {
+        const ref = doc(
+          db,
+          COLLECTIONS.REVIEWS,
+          review.id
+        );
+
+        batch.set(ref, review);
+      }
+
+      // ------------------------------------------------------
+      // Coupons
+      // ------------------------------------------------------
+
+      for (const coupon of INITIAL_COUPONS) {
+        const ref = doc(
+          db,
+          COLLECTIONS.COUPONS,
+          coupon.id
+        );
+
+        batch.set(ref, coupon);
+      }
+
+      // ------------------------------------------------------
+      // Settings
+      // ------------------------------------------------------
+
+      const settingsRef = doc(
+        db,
+        COLLECTIONS.SETTINGS,
+        'main_settings'
+      );
+
+      batch.set(
+        settingsRef,
+        INITIAL_SETTINGS
+      );
+
+      // ------------------------------------------------------
+      // Meta
+      // ------------------------------------------------------
+
+      batch.set(
+        metaDocRef,
+        {
           initialized: true,
           updatedAt: new Date().toISOString(),
           version: '1.0.0',
-        });
+        }
+      );
 
-        await batch.commit();
-        console.log('✅ Firestore cloud database seeded successfully!');
-      }
+      await batch.commit();
+
+      console.log(
+        '✅ Sun Beauty Firestore initialized successfully!'
+      );
+
       this.isInitialized = true;
     } catch (error) {
-      console.warn('Firestore initialization notice:', error);
+      console.error(
+        '❌ Firestore initialization error:',
+        error
+      );
+
+      // لا نرمي الخطأ حتى لا يمنع التطبيق من العمل
+      this.isInitialized = true;
     }
   }
 
-  // --- Real-time Subscriptions ---
-  public subscribeToProducts(callback: (products: Product[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.PRODUCTS);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const prods: Product[] = [];
-          snapshot.forEach((d) => {
-            prods.push(d.data() as Product);
-          });
-          callback(prods);
-        } else {
-          callback([]);
+  // ==========================================================
+  // PRODUCTS
+  // ==========================================================
+
+  public async getProducts(): Promise<Product[]> {
+    try {
+      const snapshot = await getDocs(
+        collection(db, COLLECTIONS.PRODUCTS)
+      );
+
+      const products: Product[] = [];
+
+      snapshot.forEach((item) => {
+        if (item.exists()) {
+          products.push({
+            id: item.id,
+            ...item.data(),
+          } as Product);
         }
-      },
-      (error) => {
-        console.warn('Error subscribing to products:', error);
-      }
-    );
+      });
+
+      return products;
+    } catch (error) {
+      console.error(
+        '❌ Firestore getProducts error:',
+        error
+      );
+
+      return [];
+    }
   }
 
-  public subscribeToCategories(callback: (categories: Category[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.CATEGORIES);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const cats: Category[] = [];
-          snapshot.forEach((d) => {
-            cats.push(d.data() as Category);
-          });
-          cats.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          callback(cats);
-        } else {
-          callback([]);
-        }
-      },
-      (error) => {
-        console.warn('Error subscribing to categories:', error);
-      }
+  public subscribeToProducts(
+    callback: (products: Product[]) => void
+  ): Unsubscribe {
+    const collectionRef = collection(
+      db,
+      COLLECTIONS.PRODUCTS
     );
-  }
 
-  public subscribeToOrders(callback: (orders: Order[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.ORDERS);
     return onSnapshot(
-      colRef,
+      collectionRef,
       (snapshot) => {
-        const ords: Order[] = [];
-        snapshot.forEach((d) => {
-          if (d.exists()) {
-            ords.push({ id: d.id, ...d.data() } as Order);
+        const products: Product[] = [];
+
+        snapshot.forEach((item) => {
+          if (item.exists()) {
+            products.push({
+              id: item.id,
+              ...item.data(),
+            } as Product);
           }
         });
-        
-        // الترتيب الآمن للطلبات
-        ords.sort((a, b) => {
-          const timeA = typeof a?.createdAt === 'string' 
-            ? new Date(a.createdAt).getTime() 
-            : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-          const timeB = typeof b?.createdAt === 'string' 
-            ? new Date(b.createdAt).getTime() 
-            : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-          return timeB - timeA;
-        });
 
-        callback(ords);
+        callback(products);
       },
       (error) => {
-        console.warn('Error subscribing to orders:', error);
-        callback([]);
+        console.error(
+          '❌ Products subscription error:',
+          error
+        );
       }
     );
   }
 
-  public subscribeToReviews(callback: (reviews: Review[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.REVIEWS);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        const revs: Review[] = [];
-        snapshot.forEach((d) => {
-          revs.push(d.data() as Review);
-        });
-        revs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        callback(revs);
-      },
-      (error) => {
-        console.warn('Error subscribing to reviews:', error);
-      }
+  public async saveProduct(
+    product: Product
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.PRODUCTS,
+      product.id
+    );
+
+    await setDoc(
+      ref,
+      product,
+      { merge: true }
     );
   }
 
-  public subscribeToCoupons(callback: (coupons: Coupon[]) => void): Unsubscribe {
-    const colRef = collection(db, COLLECTIONS.COUPONS);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        const cps: Coupon[] = [];
-        snapshot.forEach((d) => {
-          cps.push(d.data() as Coupon);
-        });
-        callback(cps);
-      },
-      (error) => {
-        console.warn('Error subscribing to coupons:', error);
-      }
+  public async deleteProduct(
+    productId: string
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.PRODUCTS,
+      productId
     );
-  }
 
-  public subscribeToSettings(callback: (settings: StoreSettings) => void): Unsubscribe {
-    const docRef = doc(db, COLLECTIONS.SETTINGS, 'main_settings');
-    return onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          callback(snapshot.data() as StoreSettings);
-        }
-      },
-      (error) => {
-        console.warn('Error subscribing to settings:', error);
-      }
-    );
-  }
-
-  // --- CRUD Operations ---
-
-  // Products
-  public async saveProduct(product: Product): Promise<void> {
-    const ref = doc(db, COLLECTIONS.PRODUCTS, product.id);
-    await setDoc(ref, product, { merge: true });
-  }
-
-  public async deleteProduct(productId: string): Promise<void> {
-    const ref = doc(db, COLLECTIONS.PRODUCTS, productId);
     await deleteDoc(ref);
   }
 
   public async clearAllProducts(): Promise<void> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.PRODUCTS));
-      if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.forEach((d) => {
-          batch.delete(d.ref);
-        });
-        await batch.commit();
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.PRODUCTS
+        )
+      );
+
+      if (snapshot.empty) {
+        return;
       }
-    } catch (e) {
-      console.warn('Firestore clearAllProducts error:', e);
+
+      const batch = writeBatch(db);
+
+      snapshot.forEach((item) => {
+        batch.delete(item.ref);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error(
+        '❌ clearAllProducts error:',
+        error
+      );
     }
   }
 
-  // Categories
+  // ==========================================================
+  // CATEGORIES
+  // ==========================================================
+
   public async getCategories(): Promise<Category[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.CATEGORIES));
-      if (!snap.empty) {
-        const list: Category[] = [];
-        snap.forEach((d) => list.push(d.data() as Category));
-        list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        return list;
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.CATEGORIES
+        )
+      );
+
+      if (snapshot.empty) {
+        return INITIAL_CATEGORIES;
       }
-    } catch (e) {
-      console.warn('Firestore getCategories error:', e);
-    }
-    return INITIAL_CATEGORIES;
-  }
 
-  public async saveCategory(category: Category): Promise<void> {
-    const ref = doc(db, COLLECTIONS.CATEGORIES, category.id);
-    await setDoc(ref, category, { merge: true });
-  }
+      const categories: Category[] = [];
 
-  public async deleteCategory(categoryId: string): Promise<void> {
-    const ref = doc(db, COLLECTIONS.CATEGORIES, categoryId);
-    await deleteDoc(ref);
-  }
-
-  // Orders (دالة فريدة واحدة ومحمية بالكامل)
-  public async getOrders(): Promise<Order[]> {
-    try {
-      const snap = await getDocs(collection(db, COLLECTIONS.ORDERS));
-      const list: Order[] = [];
-      snap.forEach((d) => {
-        if (d.exists()) {
-          list.push({ id: d.id, ...d.data() } as Order);
+      snapshot.forEach((item) => {
+        if (item.exists()) {
+          categories.push({
+            id: item.id,
+            ...item.data(),
+          } as Category);
         }
       });
-      
-      list.sort((a, b) => {
-        const timeA = typeof a?.createdAt === 'string' 
-          ? new Date(a.createdAt).getTime() 
-          : (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
-        const timeB = typeof b?.createdAt === 'string' 
-          ? new Date(b.createdAt).getTime() 
-          : (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
-        return timeB - timeA;
-      });
 
-      return list;
-    } catch (e) {
-      console.warn('Firestore getOrders error:', e);
-      return [];
+      categories.sort(
+        (a, b) =>
+          (a.order ?? 0) -
+          (b.order ?? 0)
+      );
+
+      return categories;
+    } catch (error) {
+      console.error(
+        '❌ getCategories error:',
+        error
+      );
+
+      return INITIAL_CATEGORIES;
     }
   }
 
-  public async saveOrder(order: Order): Promise<void> {
-    const ref = doc(db, COLLECTIONS.ORDERS, order.id);
-    const safeOrder = {
-      ...order,
-      createdAt: typeof order.createdAt === 'string' ? order.createdAt : new Date().toISOString()
-    };
-    await setDoc(ref, safeOrder, { merge: true });
+  public subscribeToCategories(
+    callback: (categories: Category[]) => void
+  ): Unsubscribe {
+    const collectionRef = collection(
+      db,
+      COLLECTIONS.CATEGORIES
+    );
+
+    return onSnapshot(
+      collectionRef,
+      (snapshot) => {
+        const categories: Category[] = [];
+
+        snapshot.forEach((item) => {
+          if (item.exists()) {
+            categories.push({
+              id: item.id,
+              ...item.data(),
+            } as Category);
+          }
+        });
+
+        categories.sort(
+          (a, b) =>
+            (a.order ?? 0) -
+            (b.order ?? 0)
+        );
+
+        callback(categories);
+      },
+      (error) => {
+        console.error(
+          '❌ Categories subscription error:',
+          error
+        );
+      }
+    );
   }
 
-  public async deleteOrder(orderId: string): Promise<void> {
-    const ref = doc(db, COLLECTIONS.ORDERS, orderId);
+  public async saveCategory(
+    category: Category
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.CATEGORIES,
+      category.id
+    );
+
+    await setDoc(
+      ref,
+      category,
+      { merge: true }
+    );
+  }
+
+  public async deleteCategory(
+    categoryId: string
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.CATEGORIES,
+      categoryId
+    );
+
     await deleteDoc(ref);
   }
 
-  // Reviews
+  // ==========================================================
+  // ORDERS
+  // ==========================================================
+
+  /**
+   * مهم:
+   *
+   * Promise<Order[] | null>
+   *
+   * []   = Firebase اشتغل بنجاح ولكن لا توجد طلبات
+   * null = حصل خطأ في Firebase
+   *
+   * هذا يمنع مسح الـ local cache عند حدوث خطأ.
+   */
+
+  public async getOrders(): Promise<Order[] | null> {
+    try {
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.ORDERS
+        )
+      );
+
+      const orders: Order[] = [];
+
+      snapshot.forEach((item) => {
+        if (item.exists()) {
+          orders.push({
+            id: item.id,
+            ...item.data(),
+          } as Order);
+        }
+      });
+
+      // ------------------------------------------------------
+      // Sort newest first
+      // ------------------------------------------------------
+
+      orders.sort((a, b) => {
+        const getTime = (
+          order: Order
+        ): number => {
+          const createdAt = order?.createdAt;
+
+          if (
+            typeof createdAt === 'string'
+          ) {
+            const time =
+              new Date(
+                createdAt
+              ).getTime();
+
+            return Number.isNaN(time)
+              ? 0
+              : time;
+          }
+
+          if (
+            createdAt &&
+            typeof createdAt === 'object' &&
+            'seconds' in createdAt
+          ) {
+            return (
+              Number(
+                createdAt.seconds
+              ) * 1000
+            );
+          }
+
+          return 0;
+        };
+
+        return (
+          getTime(b) -
+          getTime(a)
+        );
+      });
+
+      // Firebase نجح
+      return orders;
+    } catch (error) {
+      console.error(
+        '❌ Firestore getOrders error:',
+        error
+      );
+
+      // مهم جدًا:
+      // لا ترجع [] هنا
+      // لأن [] معناها "مفيش طلبات"
+      // بينما null معناها "Firebase فيه مشكلة"
+      return null;
+    }
+  }
+
+  public subscribeToOrders(
+    callback: (orders: Order[]) => void
+  ): Unsubscribe {
+    const collectionRef = collection(
+      db,
+      COLLECTIONS.ORDERS
+    );
+
+    return onSnapshot(
+      collectionRef,
+      (snapshot) => {
+        const orders: Order[] = [];
+
+        snapshot.forEach((item) => {
+          if (item.exists()) {
+            orders.push({
+              id: item.id,
+              ...item.data(),
+            } as Order);
+          }
+        });
+
+        orders.sort((a, b) => {
+          const getTime = (
+            order: Order
+          ): number => {
+            const createdAt =
+              order?.createdAt;
+
+            if (
+              typeof createdAt === 'string'
+            ) {
+              const time =
+                new Date(
+                  createdAt
+                ).getTime();
+
+              return Number.isNaN(time)
+                ? 0
+                : time;
+            }
+
+            if (
+              createdAt &&
+              typeof createdAt === 'object' &&
+              'seconds' in createdAt
+            ) {
+              return (
+                Number(
+                  createdAt.seconds
+                ) * 1000
+              );
+            }
+
+            return 0;
+          };
+
+          return (
+            getTime(b) -
+            getTime(a)
+          );
+        });
+
+        callback(orders);
+      },
+      (error) => {
+        console.error(
+          '❌ Orders subscription error:',
+          error
+        );
+
+        // لا نرسل [] هنا
+        // حتى لا نمسح البيانات الموجودة محليًا
+      }
+    );
+  }
+
+  public async saveOrder(
+    order: Order
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.ORDERS,
+      order.id
+    );
+
+    const safeOrder = {
+      ...order,
+
+      createdAt:
+        typeof order.createdAt === 'string'
+          ? order.createdAt
+          : new Date().toISOString(),
+    };
+
+    await setDoc(
+      ref,
+      safeOrder,
+      { merge: true }
+    );
+  }
+
+  public async deleteOrder(
+    orderId: string
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.ORDERS,
+      orderId
+    );
+
+    await deleteDoc(ref);
+  }
+
+  // ==========================================================
+  // REVIEWS
+  // ==========================================================
+
   public async getReviews(): Promise<Review[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.REVIEWS));
-      if (!snap.empty) {
-        const list: Review[] = [];
-        snap.forEach((d) => list.push(d.data() as Review));
-        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        return list;
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.REVIEWS
+        )
+      );
+
+      if (snapshot.empty) {
+        return INITIAL_REVIEWS;
       }
-    } catch (e) {
-      console.warn('Firestore getReviews error:', e);
+
+      const reviews: Review[] = [];
+
+      snapshot.forEach((item) => {
+        if (item.exists()) {
+          reviews.push({
+            id: item.id,
+            ...item.data(),
+          } as Review);
+        }
+      });
+
+      reviews.sort(
+        (a, b) =>
+          new Date(b.date).getTime() -
+          new Date(a.date).getTime()
+      );
+
+      return reviews;
+    } catch (error) {
+      console.error(
+        '❌ getReviews error:',
+        error
+      );
+
+      return INITIAL_REVIEWS;
     }
-    return INITIAL_REVIEWS;
   }
 
-  public async saveReview(review: Review): Promise<void> {
-    const ref = doc(db, COLLECTIONS.REVIEWS, review.id);
-    await setDoc(ref, review);
+  public subscribeToReviews(
+    callback: (reviews: Review[]) => void
+  ): Unsubscribe {
+    const collectionRef = collection(
+      db,
+      COLLECTIONS.REVIEWS
+    );
+
+    return onSnapshot(
+      collectionRef,
+      (snapshot) => {
+        const reviews: Review[] = [];
+
+        snapshot.forEach((item) => {
+          if (item.exists()) {
+            reviews.push({
+              id: item.id,
+              ...item.data(),
+            } as Review);
+          }
+        });
+
+        reviews.sort(
+          (a, b) =>
+            new Date(b.date).getTime() -
+            new Date(a.date).getTime()
+        );
+
+        callback(reviews);
+      },
+      (error) => {
+        console.error(
+          '❌ Reviews subscription error:',
+          error
+        );
+      }
+    );
   }
 
-  public async deleteReview(reviewId: string): Promise<void> {
-    const ref = doc(db, COLLECTIONS.REVIEWS, reviewId);
+  public async saveReview(
+    review: Review
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.REVIEWS,
+      review.id
+    );
+
+    await setDoc(
+      ref,
+      review,
+      { merge: true }
+    );
+  }
+
+  public async deleteReview(
+    reviewId: string
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.REVIEWS,
+      reviewId
+    );
+
     await deleteDoc(ref);
   }
 
   public async clearAllReviews(): Promise<void> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.REVIEWS));
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.REVIEWS
+        )
+      );
+
+      if (snapshot.empty) {
+        return;
+      }
+
       const batch = writeBatch(db);
-      snap.forEach((d) => {
-        batch.delete(d.ref);
+
+      snapshot.forEach((item) => {
+        batch.delete(item.ref);
       });
+
       await batch.commit();
-    } catch (e) {
-      console.warn('Firestore clearAllReviews error:', e);
+    } catch (error) {
+      console.error(
+        '❌ clearAllReviews error:',
+        error
+      );
     }
   }
 
-  // Coupons
+  // ==========================================================
+  // COUPONS
+  // ==========================================================
+
   public async getCoupons(): Promise<Coupon[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.COUPONS));
-      if (!snap.empty) {
-        const list: Coupon[] = [];
-        snap.forEach((d) => list.push(d.data() as Coupon));
-        return list;
+      const snapshot = await getDocs(
+        collection(
+          db,
+          COLLECTIONS.COUPONS
+        )
+      );
+
+      if (snapshot.empty) {
+        return INITIAL_COUPONS;
       }
-    } catch (e) {
-      console.warn('Firestore getCoupons error:', e);
+
+      const coupons: Coupon[] = [];
+
+      snapshot.forEach((item) => {
+        if (item.exists()) {
+          coupons.push({
+            id: item.id,
+            ...item.data(),
+          } as Coupon);
+        }
+      });
+
+      return coupons;
+    } catch (error) {
+      console.error(
+        '❌ getCoupons error:',
+        error
+      );
+
+      return INITIAL_COUPONS;
     }
-    return INITIAL_COUPONS;
   }
 
-  public async saveCoupon(coupon: Coupon): Promise<void> {
-    const ref = doc(db, COLLECTIONS.COUPONS, coupon.id);
-    await setDoc(ref, coupon, { merge: true });
+  public subscribeToCoupons(
+    callback: (coupons: Coupon[]) => void
+  ): Unsubscribe {
+    const collectionRef = collection(
+      db,
+      COLLECTIONS.COUPONS
+    );
+
+    return onSnapshot(
+      collectionRef,
+      (snapshot) => {
+        const coupons: Coupon[] = [];
+
+        snapshot.forEach((item) => {
+          if (item.exists()) {
+            coupons.push({
+              id: item.id,
+              ...item.data(),
+            } as Coupon);
+          }
+        });
+
+        callback(coupons);
+      },
+      (error) => {
+        console.error(
+          '❌ Coupons subscription error:',
+          error
+        );
+      }
+    );
   }
 
-  public async deleteCoupon(couponId: string): Promise<void> {
-    const ref = doc(db, COLLECTIONS.COUPONS, couponId);
+  public async saveCoupon(
+    coupon: Coupon
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.COUPONS,
+      coupon.id
+    );
+
+    await setDoc(
+      ref,
+      coupon,
+      { merge: true }
+    );
+  }
+
+  public async deleteCoupon(
+    couponId: string
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.COUPONS,
+      couponId
+    );
+
     await deleteDoc(ref);
   }
 
-  // Settings
+  // ==========================================================
+  // SETTINGS
+  // ==========================================================
+
   public async getSettings(): Promise<StoreSettings> {
     try {
-      const ref = doc(db, COLLECTIONS.SETTINGS, 'main_settings');
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        return snap.data() as StoreSettings;
+      const ref = doc(
+        db,
+        COLLECTIONS.SETTINGS,
+        'main_settings'
+      );
+
+      const snapshot = await getDoc(ref);
+
+      if (snapshot.exists()) {
+        return snapshot.data() as StoreSettings;
       }
-    } catch (e) {
-      console.warn('Firestore getSettings error:', e);
+
+      return INITIAL_SETTINGS;
+    } catch (error) {
+      console.error(
+        '❌ getSettings error:',
+        error
+      );
+
+      return INITIAL_SETTINGS;
     }
-    return INITIAL_SETTINGS;
   }
 
-  public async saveSettings(settings: StoreSettings): Promise<void> {
-    const ref = doc(db, COLLECTIONS.SETTINGS, 'main_settings');
-    await setDoc(ref, settings, { merge: true });
+  public subscribeToSettings(
+    callback: (settings: StoreSettings) => void
+  ): Unsubscribe {
+    const ref = doc(
+      db,
+      COLLECTIONS.SETTINGS,
+      'main_settings'
+    );
+
+    return onSnapshot(
+      ref,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          callback(
+            snapshot.data() as StoreSettings
+          );
+        }
+      },
+      (error) => {
+        console.error(
+          '❌ Settings subscription error:',
+          error
+        );
+      }
+    );
   }
 
-  // Restore full database backup into Firestore
-  public async restoreFullDatabase(dump: any): Promise<void> {
-    if (!dump || typeof dump !== 'object') {
-      throw new Error('Invalid backup file');
+  public async saveSettings(
+    settings: StoreSettings
+  ): Promise<void> {
+    const ref = doc(
+      db,
+      COLLECTIONS.SETTINGS,
+      'main_settings'
+    );
+
+    await setDoc(
+      ref,
+      settings,
+      { merge: true }
+    );
+  }
+
+  // ==========================================================
+  // RESTORE FULL DATABASE
+  // ==========================================================
+
+  public async restoreFullDatabase(
+    dump: any
+  ): Promise<void> {
+    if (
+      !dump ||
+      typeof dump !== 'object'
+    ) {
+      throw new Error(
+        'Invalid backup file'
+      );
     }
 
     const batch = writeBatch(db);
 
-    if (Array.isArray(dump.products)) {
-      for (const p of dump.products) {
-        batch.set(doc(db, COLLECTIONS.PRODUCTS, p.id), p);
+    // --------------------------------------------------------
+    // Products
+    // --------------------------------------------------------
+
+    if (
+      Array.isArray(dump.products)
+    ) {
+      for (
+        const product of dump.products
+      ) {
+        if (!product?.id) {
+          continue;
+        }
+
+        batch.set(
+          doc(
+            db,
+            COLLECTIONS.PRODUCTS,
+            product.id
+          ),
+          product
+        );
       }
-    }
-    if (Array.isArray(dump.categories)) {
-      for (const c of dump.categories) {
-        batch.set(doc(db, COLLECTIONS.CATEGORIES, c.id), c);
-      }
-    }
-    if (Array.isArray(dump.orders)) {
-      for (const o of dump.orders) {
-        batch.set(doc(db, COLLECTIONS.ORDERS, o.id), o);
-      }
-    }
-    if (Array.isArray(dump.reviews)) {
-      for (const r of dump.reviews) {
-        batch.set(doc(db, COLLECTIONS.REVIEWS, r.id), r);
-      }
-    }
-    if (Array.isArray(dump.coupons)) {
-      for (const cp of dump.coupons) {
-        batch.set(doc(db, COLLECTIONS.COUPONS, cp.id), cp);
-      }
-    }
-    if (dump.settings) {
-      batch.set(doc(db, COLLECTIONS.SETTINGS, 'main_settings'), dump.settings);
     }
 
+    // --------------------------------------------------------
+    // Categories
+    // --------------------------------------------------------
+
+    if (
+      Array.isArray(dump.categories)
+    ) {
+      for (
+        const category of dump.categories
+      ) {
+        if (!category?.id) {
+          continue;
+        }
+
+        batch.set(
+          doc(
+            db,
+            COLLECTIONS.CATEGORIES,
+            category.id
+          ),
+          category
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // Orders
+    // --------------------------------------------------------
+
+    if (
+      Array.isArray(dump.orders)
+    ) {
+      for (
+        const order of dump.orders
+      ) {
+        if (!order?.id) {
+          continue;
+        }
+
+        batch.set(
+          doc(
+            db,
+            COLLECTIONS.ORDERS,
+            order.id
+          ),
+          order
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // Reviews
+    // --------------------------------------------------------
+
+    if (
+      Array.isArray(dump.reviews)
+    ) {
+      for (
+        const review of dump.reviews
+      ) {
+        if (!review?.id) {
+          continue;
+        }
+
+        batch.set(
+          doc(
+            db,
+            COLLECTIONS.REVIEWS,
+            review.id
+          ),
+          review
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // Coupons
+    // --------------------------------------------------------
+
+    if (
+      Array.isArray(dump.coupons)
+    ) {
+      for (
+        const coupon of dump.coupons
+      ) {
+        if (!coupon?.id) {
+          continue;
+        }
+
+        batch.set(
+          doc(
+            db,
+            COLLECTIONS.COUPONS,
+            coupon.id
+          ),
+          coupon
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // Settings
+    // --------------------------------------------------------
+
+    if (dump.settings) {
+      batch.set(
+        doc(
+          db,
+          COLLECTIONS.SETTINGS,
+          'main_settings'
+        ),
+        dump.settings
+      );
+    }
+
+    // --------------------------------------------------------
+    // Commit
+    // --------------------------------------------------------
+
     await batch.commit();
+
+    console.log(
+      '✅ Full database restored successfully!'
+    );
   }
 }
 
-export const firebaseService = new FirebaseService();
+// ============================================================
+// SINGLETON INSTANCE
+// ============================================================
+
+export const firebaseService =
+  new FirebaseService();
